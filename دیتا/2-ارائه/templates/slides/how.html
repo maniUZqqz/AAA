@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block subtitle %}<p class="sub">از ثبت محصول تا انتشار خودکار</p>{% endblock %}
+{% block content %}
+<div class="grid g3">
+  {% for s in d.how_it_works %}
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span class="badge info">{{ s.n }}</span>
+      <span class="icon">{{ s.icon }}</span>
+    </div>
+    <h3>{{ s.title }}</h3>
+    <p>{{ s.desc }}</p>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid g4">
+  <div class="tile flat"><span class="v">{{ fa(m.packages[1].video_sec) }}s</span><span class="l">ویدیو در پکیج حرفه‌ای</span></div>
+  <div class="tile flat"><span class="v">{{ fa(m.packages[1].posters) }}</span><span class="l">پوستر</span></div>
+  <div class="tile flat"><span class="v">{{ fa(m.packages[1].captions) }}</span><span class="l">کپشن</span></div>
+  <div class="tile flat"><span class="v">۱</span><span class="l">ایجنت فروش، ۲۴ ساعته</span></div>
+</div>
+
+<div class="callout">
+  <span class="icon">🤝</span>
+  <p>بعد از انتشار هم کار تمام نمی‌شود: <b>ایجنت فروش</b> به مشتری پاسخ می‌دهد،
+     محصول پیشنهاد می‌دهد، سفارش ثبت می‌کند و رسید پرداخت می‌گیرد —
+     اما <b>تأیید دریافت وجه همیشه با انسان است</b>.</p>
+</div>
+{% endblock %}

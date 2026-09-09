@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block subtitle %}<p class="sub">دکوراسیون — پنج قطعه‌ی پیوسته که یک تیزر می‌سازند</p>{% endblock %}
+{% block content %}
+{% set decor = d.portfolio[2] %}
+
+<div class="strip">
+  {% for v in decor.videos %}
+  <div class="shot">
+    <video src="{{ url_for('static', filename=v) }}" data-auto muted loop playsinline
+           preload="metadata"></video>
+    <span class="stamp">قطعه {{ fa(loop.index) }}</span>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid split">
+  <div class="caption-box">{{ captions[decor.id] }}</div>
+
+  <div class="grid" style="gap:12px">
+    <div class="card">
+      <h3><span class="icon">🔗</span> پیوستگی با فریم آخر</h3>
+      <p>هر قطعه از فریم آخر قطعه‌ی قبلی شروع می‌شود. FLUX دوباره اجرا نمی‌شود
+         مگر وقتی مدل تشخیص دهد صحنه‌ی جدیدی لازم است.</p>
+    </div>
+    <div class="card">
+      <h3><span class="icon">🔁</span> retry بدون دوباره‌کاری</h3>
+      <p>اگر قطعه‌ای شکست بخورد فقط همان دوباره ساخته می‌شود؛
+         قطعات موفق دست‌نخورده می‌مانند.</p>
+    </div>
+    <div class="card">
+      <h3><span class="icon">🎙️</span> صداگذاری فارسی</h3>
+      <p>نریشن با صدای نورال فارسی، هم‌طول با هر صحنه — بدون قطع‌شدن وسط جمله.</p>
+    </div>
+  </div>
+</div>
+
+<div class="callout">
+  <span class="icon">⏱️</span>
+  <p>هر ثانیه ویدیو روی RTX 3060 حدود <b>{{ fa(m.min_per_video_sec | int) }} دقیقه</b> رندر می‌خواهد —
+     یعنی این پنج قطعه معادل <b>{{ fa((5 * 5 * m.min_per_video_sec) | int) }} دقیقه</b> زمان GPU است.
+     همین عدد پایه‌ی تمام محاسبات ظرفیت و قیمت‌گذاری در اسلایدهای بعدی است.</p>
+</div>
+{% endblock %}

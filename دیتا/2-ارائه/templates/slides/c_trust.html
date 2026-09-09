@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block subtitle %}<p class="sub">سؤال‌هایی که معمولاً پرسیده می‌شود</p>{% endblock %}
+{% block content %}
+<div class="grid g4">
+  {% for t in d.customer_value.trust %}
+  <div class="card ok">
+    <h3><span class="icon">{{ t.icon }}</span> {{ t.title }}</h3>
+    <p>{{ t.desc }}</p>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid g2">
+  {% for q in d.customer_value.faq %}
+  <div class="card">
+    <h3><span class="icon">❓</span> {{ q.q }}</h3>
+    <p>{{ q.a }}</p>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="callout">
+  <span class="icon">🤝</span>
+  <p>کنترل دست شماست: هیچ محتوایی <b>بدون تأیید شما</b> منتشر نمی‌شود،
+     قیمت و موجودی فقط از روی چیزی که خودتان ثبت کرده‌اید گفته می‌شود،
+     و <b>تأیید هر پرداخت همیشه با یک انسان است</b> — نه با هوش مصنوعی.</p>
+</div>
+{% endblock %}

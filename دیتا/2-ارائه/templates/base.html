@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }} | {{ d.meta.brand_fa }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/deck.css') }}">
+</head>
+<body>
+
+<div class="progress"><span style="width: {{ (num / total * 100) | round(1) }}%"></span></div>
+
+<div class="stage">
+  <section class="slide">
+    {% block header %}
+    <header class="head">
+      <span class="tag">{{ tag }}</span>
+      <h1>{{ title }}</h1>
+      {% block subtitle %}{% endblock %}
+      <div class="rule"></div>
+    </header>
+    {% endblock %}
+
+    <div class="body">
+      {% block content %}{% endblock %}
+    </div>
+  </section>
+</div>
+
+<nav class="nav">
+  <a href="{{ url_for('home') }}" class="ghost" title="انتخاب مخاطب">{{ meta.icon }}</a>
+
+  <a href="{{ url_for('slide', deck=deck, num=prev) if prev else '#' }}"
+     class="{{ 'off' if not prev }}" rel="prev">
+    <span aria-hidden="true">→</span><span class="lbl">قبلی</span>
+  </a>
+
+  <span class="pos">{{ fa(num) }} / {{ fa(total) }}</span>
+
+  <select id="jump" data-deck="{{ deck }}" aria-label="پرش به اسلاید">
+    {% for name, t, ttl in slides %}
+      <option value="{{ loop.index }}" {{ 'selected' if loop.index == num }}>
+        {{ fa(loop.index) }}. {{ ttl }}
+      </option>
+    {% endfor %}
+  </select>
+
+  <a href="{{ url_for('slide', deck=deck, num=next) if next else '#' }}"
+     class="{{ 'off' if not next }}" rel="next">
+    <span class="lbl">بعدی</span><span aria-hidden="true">←</span>
+  </a>
+</nav>
+
+<script src="{{ url_for('static', filename='js/deck.js') }}"></script>
+</body>
+</html>

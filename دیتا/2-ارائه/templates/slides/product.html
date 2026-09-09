@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block subtitle %}<p class="sub">{{ d.product.headline }}</p>{% endblock %}
+{% block content %}
+<div class="grid g4">
+  {% for s in d.product.stats %}
+  <div class="tile">
+    <span class="v">{{ s.value }}</span>
+    <span class="l">{{ s.label }}</span>
+    <span class="d">{{ s.detail }}</span>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid g3">
+  {% for e in d.product.engines %}
+  <div class="card accent">
+    <h3><span class="icon">{{ e.icon }}</span> {{ e.title }}</h3>
+    <p>{{ e.lead }}</p>
+    <div class="chips">
+      {% for o in e.outputs[:6] %}<span class="chip">{{ o }}</span>{% endfor %}
+      {% if e.outputs | length > 6 %}
+      <span class="chip on">+{{ fa(e.outputs | length - 6) }} مورد دیگر</span>
+      {% endif %}
+    </div>
+    <div class="note">{{ e.note }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid g4">
+  {% for s in d.product.studio %}
+  <div class="card">
+    <h3><span class="icon">{{ s.icon }}</span> {{ s.title }}</h3>
+    <p>{{ s.detail }}</p>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="callout">
+  <span class="icon">🚦</span>
+  <p>موتور تولید محتوا و <b>لایه‌ی تجاری</b> هر دو ساخته شده‌اند —
+     {{ d.product.stats[1].value }} تست سبز، {{ d.product.stats[0].value }} دامنه،
+     سیستم اشتراک و سهمیه، و انتشار مستقیم در اینستاگرام.
+     آنچه مانده <b>{{ m.gaps[0].title }}</b> است.</p>
+</div>
+{% endblock %}

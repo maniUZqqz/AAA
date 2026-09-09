@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block subtitle %}<p class="sub">هزینه‌ی تولید یک بسته محتوا، در سه مدل زیرساخت</p>{% endblock %}
+{% block content %}
+<div class="grid g3">
+  {% for o in m.infra %}
+  <div class="card {{ 'ok' if o.recommended else ('bad' if o.share_of_revenue >= 1 else '') }}">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h3><span class="icon">{{ o.icon }}</span> {{ o.name }}</h3>
+      {% if o.recommended %}<span class="badge ok">انتخاب ما</span>
+      {% elif o.share_of_revenue >= 1 %}<span class="badge bad">ضررده</span>{% endif %}
+    </div>
+    <p style="color:var(--text-3);font-size:.78rem">{{ o.subtitle }}</p>
+
+    <table class="tbl">
+      <tbody>
+        <tr><td>سرمایه اولیه</td>
+            <td class="num">{{ compact(o.capex) if o.capex else '۰' }}</td></tr>
+        <tr><td>هر ثانیه ویدیو</td>
+            <td class="num">{{ money(o.per_video_sec) }}</td></tr>
+        <tr><td>هر پوستر</td>
+            <td class="num">{{ money(o.per_poster) }}</td></tr>
+        <tr class="hi"><td>هر مشتری</td>
+            <td class="num">{{ money(o.per_customer) }}</td></tr>
+        <tr><td>ریسک تحریم</td>
+            <td class="{{ 'good' if o.sanction_risk == 'صفر' else 'poor' }}">{{ o.sanction_risk }}</td></tr>
+      </tbody>
+    </table>
+
+    <div class="meter {{ 'ok' if o.share_of_revenue < 0.5 else 'bad' }}">
+      <span style="width:{{ [o.share_of_revenue * 100, 100] | min | round(1) }}%"></span>
+    </div>
+    <div class="note">{{ pct(o.share_of_revenue) }} از درآمد میانگین هر مشتری</div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid split">
+  <div class="card warn">
+    <h3><span class="icon">🔬</span> تحلیل حساسیت به نرخ دلار</h3>
+    <div class="scroll-x">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>نرخ دلار</th>
+            {% for o in m.infra %}<th>{{ o.name }}</th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for rate in [350000, 700000, 1050000] %}
+          <tr class="{{ 'hi' if rate == m.a.usd_rate }}">
+            <td class="num">{{ money(rate) }}</td>
+            {% for r in m.sensitivity(rate) %}
+            <td class="num {{ 'good' if r.viable else 'poor' }}">{{ money(r.per_customer) }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+        <caption>سبز = زیر حاشیه مشارکت ({{ money(m.contribution) }} تومان) · قرمز = ناپایدار</caption>
+      </table>
+    </div>
+  </div>
+
+  <div class="callout">
+    <span class="icon">⚠️</span>
+    <p>نتیجه‌ای که باید دیده شود: <b>API خارجی در هیچ نرخی برنده نیست.</b>
+       با نرخ فعلی هزینه‌اش <b>{{ pct(m.infra_by_id('api').share_of_revenue) }} از درآمد</b> است،
+       یعنی پیش از هر هزینه‌ی ثابتی ضرر می‌دهد.
+       سرور شخصی با <b>{{ pct(m.infra_by_id('personal').share_of_revenue) }}</b>
+       تنها گزینه‌ای است که مدل کسب‌وکار را می‌بندد — و سخت‌افزارش را همین حالا داریم.</p>
+  </div>
+</div>
+{% endblock %}

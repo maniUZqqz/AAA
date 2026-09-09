@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block subtitle %}<p class="sub">{{ d.ask.headline }}</p>{% endblock %}
+{% block content %}
+<div class="grid g4">
+  <div class="tile ok"><span class="v">{{ d.product.stats[1].value }}</span><span class="l">تست سبز — محصول ساخته شده</span></div>
+  <div class="tile"><span class="v">{{ fa(m.break_even) }}</span><span class="l">مشتری تا سر به سر</span></div>
+  <div class="tile"><span class="v">{{ compact(m.at_capacity.net) }}</span><span class="l">سود ماهانه در ظرفیت کامل (تومان)</span></div>
+  <div class="tile"><span class="v">{{ fa('%.1f' | format(m.payback_months)) }}</span><span class="l">ماه تا بازگشت سرمایه</span></div>
+</div>
+
+<div class="grid g3">
+  {% for a in d.ask['items'] %}
+  <div class="card accent">
+    <h3><span class="icon">{{ a.icon }}</span> {{ a.title }}</h3>
+    <p>{{ a.desc }}</p>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid split">
+  <div class="card">
+    <h3><span class="icon">✅</span> آنچه امروز آماده است</h3>
+    <ul class="list ok">
+      <li>MVP کامل با {{ d.product.stats[1].value }} تست خودکار سبز</li>
+      <li>نمونه‌ی خروجی واقعی در {{ fa(d.portfolio | length) }} دسته‌ی محصول</li>
+      <li>سخت‌افزار GPU در اختیار — بدون نیاز به سرمایه‌ی زیرساخت</li>
+      <li>مدل مالی بسته با هزینه‌ی تولید {{ pct(m.infra_by_id('personal').share_of_revenue) }} از درآمد</li>
+    </ul>
+  </div>
+
+  <div class="card warn">
+    <h3><span class="icon">🎯</span> آنچه مانده</h3>
+    <ul class="list">
+      {% for g in m.gaps %}<li><b>{{ g.title }}</b> — {{ g.impact }}</li>{% endfor %}
+      <li>رساندن محصول به <b>{{ fa(m.break_even) }} مشتری</b> اول</li>
+    </ul>
+  </div>
+</div>
+
+<div class="callout">
+  <span class="icon">🚀</span>
+  <p>{{ d.ask.closing }}</p>
+</div>
+{% endblock %}

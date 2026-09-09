@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block subtitle %}<p class="sub">اندازه‌ی بازار و سهم قابل دستیابی</p>{% endblock %}
+{% block content %}
+{% set som = m.som() %}
+<div class="grid g3">
+  <div class="card">
+    <h3><span class="badge info">TAM</span> {{ d.market.tam.label }}</h3>
+    <div class="tile flat" style="border:none;background:none;padding:6px 0">
+      <span class="v">{{ d.market.tam.display }}</span>
+      <span class="d">{{ d.market.tam.display_usd }}</span>
+    </div>
+  </div>
+  <div class="card">
+    <h3><span class="badge info">SAM</span> {{ d.market.sam.label }}</h3>
+    <div class="tile flat" style="border:none;background:none;padding:6px 0">
+      <span class="v">{{ fa('{:,}'.format(d.market.sam.min).replace(',', '٬')) }}–{{ fa('{:,}'.format(d.market.sam.max).replace(',', '٬')) }}</span>
+      <span class="d">{{ d.market.sam.unit }}</span>
+    </div>
+  </div>
+  <div class="card accent">
+    <h3><span class="badge ok">SOM</span> {{ d.market.som.label }}</h3>
+    <div class="tile flat" style="border:none;background:none;padding:6px 0">
+      <span class="v">{{ fa('{:,}'.format(som.min).replace(',', '٬')) }}–{{ fa('{:,}'.format(som.max).replace(',', '٬')) }}</span>
+      <span class="d">مشتری → {{ compact(som.revenue_min_year) }} تا {{ compact(som.revenue_max_year) }} تومان درآمد سالانه</span>
+    </div>
+  </div>
+</div>
+
+<div class="grid g4">
+  {% for f in d.market.facts %}
+  <div class="tile"><span class="v">{{ f.value }}</span><span class="l">{{ f.label }}</span></div>
+  {% endfor %}
+</div>
+
+<div class="grid split">
+  <div class="callout">
+    <span class="icon">🚀</span>
+    <p>بازار بزرگ است و <b>نرخ پذیرش AI پیشرفته در SMEهای ایران تقریباً صفر</b> —
+       یعنی رقابت بر سر سهم نیست، بر سر <b>ساختن بازار</b> است.</p>
+  </div>
+  <div class="card warn">
+    <h3><span class="icon">📐</span> واقعیت مقیاس</h3>
+    <p>رسیدن به {{ fa('{:,}'.format(som.min).replace(',', '٬')) }} مشتری با نرخ مصرف فعلی، حدود
+       <b>{{ fa(som.systems_min) }} سیستم</b> GPU لازم دارد
+       (هر {{ fa(d.hardware.systems | length) }} سیستم = {{ fa(m.max_customers) }} مشتری).
+       رشد این کسب‌وکار <b>پله‌ای و سرمایه‌بر</b> است — نه نامحدود.</p>
+  </div>
+</div>
+
+<p class="note warn">توجه: {{ d.market.tam.warning }}</p>
+{% endblock %}

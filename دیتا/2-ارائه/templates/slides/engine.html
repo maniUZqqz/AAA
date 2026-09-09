@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block subtitle %}<p class="sub">هر قابلیت، روی سخت‌افزار ما یا هر API — با یک تغییر در پنل</p>{% endblock %}
+{% block content %}
+<div class="grid g4">
+  {% for cap, label, icon in [
+      ('TEXT','متن، تحلیل و ریسرچ','🧠'), ('VISION','تحلیل تصویر','👁️'),
+      ('IMAGE','تولید تصویر','🎨'), ('VIDEO','تولید ویدیو','🎬')] %}
+  <div class="card">
+    <h3><span class="icon">{{ icon }}</span> {{ label }}</h3>
+    <div class="chips">
+      <span class="chip on">🖥️ سخت‌افزار ما</span>
+      <span class="chip">☁️ هر API</span>
+    </div>
+    <p style="font-size:.8rem">قابل تعویض با آدرس، کلید و نام مدل — بدون تغییر کد.</p>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid split">
+  <div class="card ok">
+    <h3><span class="icon">🛡️</span> چرا این مهم است</h3>
+    <ul class="list ok">
+      <li><b>ریسک تحریم مهار می‌شود</b> — اگر API قطع شد، همان لحظه به GPU خودمان برمی‌گردیم</li>
+      <li><b>ریسک خرابی سخت‌افزار مهار می‌شود</b> — اگر کارت سوخت، کار روی API ادامه می‌دهد</li>
+      <li><b>سرریز ظرفیت</b> — بالای ۲۸۳ مشتری، مازاد به API می‌رود تا سیستم بعدی برسد</li>
+      <li><b>هزینه قابل انتخاب است</b> — نه یک تصمیم قفل‌شده در کد</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3><span class="icon">⚙️</span> در عمل</h3>
+    <table class="tbl">
+      <tbody>
+        <tr><td>محل تنظیم</td><td>پنل مدیریت</td></tr>
+        <tr><td>ورودی‌ها</td><td>آدرس · کلید · نام مدل</td></tr>
+        <tr><td>اولویت</td><td>لوکال اول، API پشتش</td></tr>
+        <tr><td>تست اتصال</td><td>یک دکمه — واقعاً چک می‌کند</td></tr>
+        <tr><td>ثبت مصرف</td><td>هر کار می‌داند لوکال بود یا بیرونی</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="callout">
+  <span class="icon">🔀</span>
+  <p>در اسلاید بعد سه گزینه‌ی زیرساخت مقایسه می‌شوند. نکته این است که
+     <b>مجبور به انتخاب یکی برای همیشه نیستیم</b> — معماری اجازه می‌دهد
+     هر قابلیت جداگانه و در هر لحظه جابه‌جا شود.</p>
+</div>
+{% endblock %}

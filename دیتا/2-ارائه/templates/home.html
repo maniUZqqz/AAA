@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ d.meta.brand_fa }} — انتخاب ارائه</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/deck.css') }}">
+</head>
+<body>
+
+<div class="stage" style="padding-bottom:40px">
+  <section class="slide">
+    <div class="cover" style="gap:18px">
+      <span class="tag">{{ d.meta.tagline }}</span>
+      <div class="mark">{{ d.meta.brand_fa }}</div>
+      <p class="slogan">{{ d.meta.brand_en }}</p>
+      <div class="rule" style="margin-inline:auto"></div>
+      <p class="lead">{{ d.meta.one_liner }}</p>
+
+      <div class="grid g2" style="width:100%;max-width:820px;margin-top:14px">
+        {% for key, deck in decks.items() %}
+        <a class="pick" href="{{ url_for('slide', deck=key, num=1) }}">
+          <span class="icon" style="font-size:2.4rem">{{ deck.icon }}</span>
+          <h3>{{ deck.name }}</h3>
+          <span class="chip on">{{ deck.audience }}</span>
+          <p>{{ deck.desc }}</p>
+          <span class="d">{{ fa(deck.slides | length) }} اسلاید</span>
+        </a>
+        {% endfor %}
+      </div>
+
+      <p class="note" style="margin-top:16px;text-align:center;border:none;padding:0">
+        نسخه {{ fa(d.meta.version) }} — {{ d.meta.updated }} ·
+        همه‌ی اعداد از <code>1-داده-پایه/data.json</code>
+      </p>
+    </div>
+  </section>
+</div>
+
+</body>
+</html>

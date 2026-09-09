@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block subtitle %}<p class="sub">سه پکیج، یک منبع حقیقت</p>{% endblock %}
+{% block content %}
+<div class="grid g3">
+  {% for p in m.packages %}
+  <div class="card {{ 'accent' if p.highlight }}">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h3>{{ p.name }}</h3>
+      {% if p.highlight %}<span class="badge ok">پرفروش</span>{% endif %}
+    </div>
+    <div class="tile flat" style="border:none;background:none;padding:4px 0;text-align:right">
+      <span class="v">{{ money(p.price) }}</span>
+      <span class="d">تومان در ماه</span>
+    </div>
+    <ul class="list">
+      <li>{{ fa(p.video_sec) }} ثانیه ویدیو در ماه ({{ fa(p.segments) }} قطعه)</li>
+      <li>{{ fa(p.posters) }} تصویر (پوستر / عکس اینستاگرامی / بهبود)</li>
+      <li>{{ fa(p.captions) }} کپشن — هرکدام سه طول + هشتگ + CTA</li>
+      <li>ایجنت فروش و پشتیبانی</li>
+    </ul>
+    <div class="note">
+      مصرف GPU: {{ fa(p.gpu_min | int) }} دقیقه ·
+      سهم از ترکیب مشتریان: {{ pct(p.mix_share) }}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid g4">
+  <div class="tile"><span class="v">{{ money(m.avg_revenue) }}</span><span class="l">درآمد میانگین هر مشتری (تومان)</span></div>
+  <div class="tile"><span class="v">{{ money(m.variable_per_customer) }}</span><span class="l">هزینه متغیر هر مشتری (تومان)</span></div>
+  <div class="tile ok"><span class="v">{{ money(m.contribution) }}</span><span class="l">حاشیه مشارکت هر مشتری (تومان)</span></div>
+  <div class="tile"><span class="v">{{ pct(m.contribution / m.avg_revenue) }}</span><span class="l">نسبت حاشیه مشارکت</span></div>
+</div>
+
+<div class="grid split">
+  <div class="card">
+    <h3><span class="icon">🧾</span> هزینه متغیر از کجا می‌آید</h3>
+    <table class="tbl">
+      <tbody>
+        <tr><td>{{ d.variable_costs.caption_api_per_unit.label }} × {{ fa(m.avg_captions) }}</td>
+            <td class="num">{{ money(m.cost_captions) }}</td></tr>
+        <tr><td>{{ d.variable_costs.instagram_api.label }}
+            <span class="badge warn">{{ d.variable_costs.instagram_api.status }}</span></td>
+            <td class="num">{{ money(m.cost_instagram) }}</td></tr>
+        <tr class="hi"><td>جمع (سناریوی پایه)</td><td class="num">{{ money(m.variable_planned) }}</td></tr>
+        <tr><td>امروز، تا وصل‌شدن اینستاگرام</td>
+            <td class="num good">{{ money(m.variable_today) }}</td></tr>
+      </tbody>
+      <caption>هزینه‌ی GPU اینجا نیست — سخت‌افزار خودمان است و در هزینه‌ی ثابت (استهلاک + برق) حساب شده.
+        سناریوی پایه عمداً هزینه‌ی اینستاگرام را از حالا لحاظ می‌کند.</caption>
+    </table>
+  </div>
+
+  <div class="callout">
+    <span class="icon">💡</span>
+    <p>ترکیب فرض‌شده‌ی مشتریان
+       ({{ pct(m.packages[0].mix_share) }} استارت،
+        {{ pct(m.packages[1].mix_share) }} حرفه‌ای،
+        {{ pct(m.packages[2].mix_share) }} بی‌نهایت)
+       درآمد میانگین <b>{{ money(m.avg_revenue) }} تومان</b> می‌دهد —
+       عددی که همه‌ی محاسبات بعدی روی آن بنا شده.</p>
+  </div>
+</div>
+{% endblock %}

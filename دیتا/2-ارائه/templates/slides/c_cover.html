@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block header %}{% endblock %}
+{% block content %}
+{% set roi = m.headline_roi %}
+<div class="cover">
+  <span class="tag">{{ d.meta.brand_fa }}</span>
+  <div class="mark" style="font-size:clamp(2.2rem,5.5vw,3.8rem);letter-spacing:-1px">
+    بازاریابی فروشگاه شما،<br>خودکار
+  </div>
+  <div class="rule" style="margin-inline:auto"></div>
+  <p class="lead">
+    اطلاعات محصولتان را وارد کنید — <b style="color:var(--text)">پوستر، ویدیو، کپشن</b>
+    و یک <b style="color:var(--text)">پشتیبان فروش ۲۴ ساعته</b> تحویل بگیرید.
+    بدون گرافیست، بدون تدوینگر، بدون کپی‌رایتر.
+  </p>
+
+  <div class="grid g3" style="width:100%;max-width:860px;margin-top:clamp(12px,2.5vw,28px)">
+    <div class="tile">
+      <span class="v">{{ compact(roi.saving) }}</span>
+      <span class="l">تومان صرفه‌جویی در ماه</span>
+    </div>
+    <div class="tile">
+      <span class="v">چند دقیقه</span>
+      <span class="l">تا آماده شدن بسته‌ی محتوا</span>
+    </div>
+    <div class="tile">
+      <span class="v">۲ هفته</span>
+      <span class="l">رایگان، بدون کارت بانکی</span>
+    </div>
+  </div>
+</div>
+{% endblock %}

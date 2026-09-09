@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block subtitle %}<p class="sub">{{ d.gtm.core }}</p>{% endblock %}
+{% block content %}
+<div class="grid g4">
+  {% for s in d.gtm.stats %}
+  <div class="tile"><span class="v">{{ s.value }}</span><span class="l">{{ s.label }}</span></div>
+  {% endfor %}
+</div>
+
+<div class="grid g3">
+  {% for p in d.gtm.phases %}
+  <div class="card {{ 'accent' if loop.first }}">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span class="badge info">{{ p.n }}</span>
+      <h3 style="margin:0">{{ p.title }}</h3>
+      <span class="chip">{{ p.time }}</span>
+    </div>
+    <ul class="list">
+      {% for item in p['items'] %}<li>{{ item }}</li>{% endfor %}
+    </ul>
+    <div class="note">{{ p.note }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid split">
+  <div class="card">
+    <h3><span class="icon">📣</span> کانال‌ها و اهداف</h3>
+    <div class="scroll-x">
+      <table class="tbl">
+        <thead><tr><th>کانال</th><th>فاز ۱ (ماه ۱–۳)</th><th>فاز ۲ (ماه ۴–۶)</th></tr></thead>
+        <tbody>
+          {% for c in d.gtm.channels %}
+          <tr><td>{{ c.channel }}</td><td>{{ c.p1 }}</td><td>{{ c.p2 }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="grid" style="gap:12px">
+    {% for pr in d.gtm.principles %}
+    <div class="card accent">
+      <h3><span class="badge info">{{ fa(loop.index) }}</span> {{ pr }}</h3>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="callout">
+  <span class="icon">🎯</span>
+  <p>هدف فاز اول <b>{{ fa(m.break_even) }} مشتری پرداخت‌کننده</b> است — همان نقطه‌ی سر به سر.
+     با نرخ تبدیل {{ d.gtm.stats[1].value }} از دوره‌ی آزمایشی، یعنی حدود
+     <b>{{ fa((m.break_even / 0.5) | round | int) }} فروشگاه</b> باید وارد پلن رایگان شوند.</p>
+</div>
+{% endblock %}

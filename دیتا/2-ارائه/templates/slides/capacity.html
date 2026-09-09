@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block subtitle %}<p class="sub">چند مشتری با {{ fa(d.hardware.systems | length) }} سیستم RTX 3060 می‌توان سرویس داد</p>{% endblock %}
+{% block content %}
+<div class="grid split">
+  <div class="card">
+    <h3><span class="icon">🖥️</span> سخت‌افزار</h3>
+    <div class="scroll-x">
+      <table class="tbl">
+        <thead><tr><th>سیستم</th><th>CPU</th><th>RAM</th><th>GPU</th><th>قیمت</th></tr></thead>
+        <tbody>
+          {% for s in d.hardware.systems %}
+          <tr>
+            <td>{{ s.name }}</td><td>{{ s.cpu }}</td><td>{{ s.ram }}</td>
+            <td>{{ s.gpu }}</td><td class="num">{{ compact(s.price) }}</td>
+          </tr>
+          {% endfor %}
+          <tr class="hi"><td colspan="4">جمع سرمایه</td><td class="num">{{ compact(m.capex) }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3><span class="icon">⏱️</span> ظرفیت ماهانه GPU</h3>
+    <table class="tbl">
+      <tbody>
+        <tr>
+          <td>{{ fa(d.hardware.systems | length) }} سیستم × {{ fa(m.a.uptime_hours_per_day) }} ساعت × {{ fa(m.a.days_per_month) }} روز</td>
+          <td class="num">{{ money(m.gpu_min_raw) }} دقیقه</td>
+        </tr>
+        <tr>
+          <td>منهای افت واقعی {{ pct(m.a.derate) }}</td>
+          <td class="num">−{{ money(m.gpu_min_raw - m.gpu_min_usable) }}</td>
+        </tr>
+        <tr class="hi">
+          <td>ظرفیت مؤثر</td>
+          <td class="num">{{ money(m.gpu_min_usable) }} دقیقه</td>
+        </tr>
+      </tbody>
+      <caption>معادل {{ money(m.gpu_min_usable / 60) }} ساعت رندر در ماه</caption>
+    </table>
+  </div>
+</div>
+
+<div class="grid g4">
+  <div class="tile flat"><span class="v">{{ fa(m.min_per_video_sec | int) }}</span><span class="l">دقیقه GPU برای هر ثانیه ویدیو</span></div>
+  <div class="tile flat"><span class="v">{{ fa(m.min_per_poster | int) }}</span><span class="l">دقیقه GPU برای هر پوستر</span></div>
+  <div class="tile"><span class="v">{{ fa(m.avg_gpu_min | round | int) }}</span><span class="l">دقیقه GPU مصرف هر مشتری</span></div>
+  <div class="tile ok"><span class="v">{{ fa(m.max_customers) }}</span><span class="l">سقف واقعی مشتری</span></div>
+</div>
+
+<div class="grid split">
+  <div class="card">
+    <h3><span class="icon">📊</span> زمان GPU هر مشتری صرف چه می‌شود</h3>
+    <div class="meter" style="margin:8px 0 6px">
+      <span style="width:{{ (m.video_share_of_gpu * 100) | round(1) }}%"></span>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:.78rem;color:var(--text-2)">
+      <span>🎬 ویدیو — {{ pct(m.video_share_of_gpu) }}</span>
+      <span>🎨 پوستر — {{ pct(1 - m.video_share_of_gpu) }}</span>
+    </div>
+    <p style="margin-top:8px">ویدیو گران‌ترین منبع است: هر ثانیه ویدیوی اضافه در یک پکیج،
+       {{ fa(m.min_per_video_sec | int) }} دقیقه از ظرفیت ماهانه را می‌بلعد.
+       طراحی پکیج‌ها باید حول همین عدد بچرخد.</p>
+  </div>
+
+  <div class="card warn">
+    <h3><span class="icon">🔧</span> اصلاح یک خطای مدل قبلی</h3>
+    <p>مدل قبلی سقف را <b>{{ fa(m.max_customers_video_only) }} مشتری</b> می‌داد،
+       چون فقط زمان ویدیو را حساب می‌کرد و <b>زمان پوستر را نادیده می‌گرفت</b>.
+       اما پوستر (FLUX) و ویدیو (Wan 2.2) روی همان GPU و همان صف با ظرفیت ۱
+       اجرا می‌شوند، پس زمان‌شان جمع می‌شود.</p>
+    <p>سقف درست: <b class="good">{{ fa(m.max_customers) }} مشتری</b> —
+       {{ pct((m.max_customers_video_only - m.max_customers) / m.max_customers_video_only) }}
+       کمتر از عدد قبلی.</p>
+  </div>
+</div>
+{% endblock %}

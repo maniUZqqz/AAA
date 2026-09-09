@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block subtitle %}<p class="sub">خروجی واقعی — نه نمونه‌ی تبلیغاتی</p>{% endblock %}
+{% block content %}
+{% set apparel = d.portfolio[0] %}
+{% set accessory = d.portfolio[1] %}
+
+<div class="grid g2">
+  {% for p in [apparel, accessory] %}
+  <div class="grid" style="gap:12px">
+    <div class="shot">
+      <img src="{{ url_for('static', filename=p.image) }}"
+           alt="پوستر تولیدشده برای {{ p.product }}" loading="lazy">
+      <span class="stamp">{{ p.category }} · {{ p.product }}</span>
+    </div>
+    <div class="caption-box">{{ captions[p.id] }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid g3">
+  <div class="tile flat"><span class="v">🎨</span><span class="l">تصویر با FLUX از عکس واقعی محصول</span></div>
+  <div class="tile flat"><span class="v">✍️</span><span class="l">کپشن با QwQ، مخصوص اینستاگرام</span></div>
+  <div class="tile flat"><span class="v">🇮🇷</span><span class="l">فارسی، با لحن برند و CTA دایرکت</span></div>
+</div>
+
+<div class="callout">
+  <span class="icon">✅</span>
+  <p>هر دو نمونه با همین کدی ساخته شده‌اند که در ارائه توضیح داده می‌شود —
+     تصویر، متن و فراخوان به اقدام، همه در یک جریان.
+     <b>مشتری خودِ محصولش را می‌بیند، نه یک تصویر ساختگی.</b></p>
+</div>
+{% endblock %}

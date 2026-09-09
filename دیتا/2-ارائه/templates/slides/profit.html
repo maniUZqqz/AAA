@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block subtitle %}<p class="sub">هزینه ثابت، نقطه سر به سر و سود در ظرفیت کامل</p>{% endblock %}
+{% block content %}
+<div class="grid split">
+  <div class="card">
+    <h3><span class="icon">🧾</span> هزینه ثابت ماهانه</h3>
+    <table class="tbl">
+      <tbody>
+        {% for line in m.fixed_lines %}
+        <tr><td>{{ line.label }}</td><td class="num">{{ money(line.amount) }}</td></tr>
+        {% endfor %}
+        <tr class="hi"><td>جمع</td><td class="num">{{ money(m.fixed_total) }}</td></tr>
+      </tbody>
+      <caption>حقوق تیم {{ pct(m.fixed_lines[-1].amount / m.fixed_total) }} از کل هزینه ثابت است —
+        بزرگ‌ترین اهرم و بزرگ‌ترین ریسک این مدل.</caption>
+    </table>
+  </div>
+
+  <div class="grid" style="gap:12px">
+    <div class="grid g2">
+      <div class="tile warn"><span class="v">{{ fa(m.break_even) }}</span><span class="l">مشتری برای رسیدن به سر به سر</span></div>
+      <div class="tile ok"><span class="v">{{ fa(m.max_customers) }}</span><span class="l">سقف سخت‌افزار فعلی</span></div>
+    </div>
+    <div class="grid g2">
+      <div class="tile"><span class="v">{{ compact(m.at_capacity.net) }}</span><span class="l">سود خالص ماهانه در ظرفیت کامل (تومان)</span></div>
+      <div class="tile"><span class="v">{{ fa('%.1f' | format(m.payback_months)) }}</span><span class="l">ماه تا بازگشت نقدی سرمایه</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h3><span class="icon">📈</span> سناریوها</h3>
+  <div class="scroll-x">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>مشتری</th><th>درآمد</th><th>هزینه متغیر</th><th>هزینه ثابت</th>
+          <th>سود خالص</th><th>حاشیه</th><th>ساعت کار هر سیستم در روز</th><th>ظرفیت مصرف‌شده</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in m.scenarios %}
+        <tr class="{{ 'hi' if s.customers == m.max_customers }}">
+          <td class="num">{{ fa(s.customers) }}</td>
+          <td class="num">{{ money(s.revenue) }}</td>
+          <td class="num">{{ money(s.variable) }}</td>
+          <td class="num">{{ money(s.fixed) }}</td>
+          <td class="num {{ 'good' if s.net > 0 else 'poor' }}">{{ money(s.net) }}</td>
+          <td class="num {{ 'good' if s.margin > 0 else 'poor' }}">{{ pct(s.margin) }}</td>
+          <td class="num">{{ fa('%.1f' | format(s.hours_per_system_per_day)) }}</td>
+          <td class="num">{{ pct(s.capacity_used) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <caption>ساعت کار، زمان خالص رندر است؛ سیستم‌ها {{ fa(m.a.uptime_hours_per_day) }} ساعت در روز روشن‌اند
+        و فاصله‌ی این دو، همان افت {{ pct(m.a.derate) }} است.</caption>
+    </table>
+  </div>
+</div>
+
+<div class="grid split">
+  <div class="card ok">
+    <h3><span class="icon">➕</span> {{ m.expansion.label }} — گام بعدی رشد</h3>
+    <p>با {{ compact(m.expansion.price) }} تومان سرمایه‌ی اضافه، سقف از
+       <b>{{ fa(m.max_customers) }}</b> به <b>{{ fa(m.expansion.max_customers) }} مشتری</b> می‌رود.
+       چون حقوق تیم ثابت می‌ماند، حاشیه سود از
+       <b>{{ pct(m.at_capacity.margin) }}</b> به <b>{{ pct(m.expansion.pnl.margin) }}</b>
+       جهش می‌کند — سود ماهانه {{ compact(m.expansion.pnl.net) }} تومان.</p>
+  </div>
+
+  <div class="callout">
+    <span class="icon">💰</span>
+    <p>با <b>{{ fa(m.break_even) }} مشتری</b> به سر به سر می‌رسیم و با
+       <b>{{ fa(m.max_customers) }} مشتری</b> سخت‌افزار فعلی پر می‌شود:
+       ماهانه <b>{{ compact(m.at_capacity.net) }} تومان</b> سود خالص و
+       بازگشت سرمایه در <b>{{ fa('%.1f' | format(m.payback_months)) }} ماه</b>.
+       این حاشیه <b>بعد از</b> احتساب کامل حقوق تیم است، نه قبل از آن.</p>
+  </div>
+</div>
+{% endblock %}

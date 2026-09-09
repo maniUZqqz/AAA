@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block subtitle %}<p class="sub">برای یک صفحه‌ی اینستاگرام حرفه‌ای، به چند نفر نیاز دارید</p>{% endblock %}
+{% block content %}
+{% set roi = m.headline_roi %}
+
+<div class="grid g3">
+  {% for r in d.problem.roles %}
+  <div class="card">
+    <h3><span class="icon">{{ r.icon }}</span> {{ r.role }}</h3>
+    <p>{{ r.task }}</p>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid split">
+  <div class="card bad">
+    <h3><span class="icon">💸</span> اگر خودتان تیم بسازید</h3>
+    <table class="tbl">
+      <tbody>
+        <tr><td>تعداد تخصص لازم</td><td class="num">{{ fa(d.problem.roles | length) }} نفر</td></tr>
+        <tr><td>هزینه ماهانه</td><td class="num">{{ money(d.problem.team_cost_monthly) }} تومان</td></tr>
+        <tr><td>زمان تا اولین خروجی</td><td class="num">هفته‌ها</td></tr>
+        <tr><td>مدیریت و هماهنگی</td><td>با شما</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card ok">
+    <h3><span class="icon">✨</span> با آپ‌مارکت</h3>
+    <table class="tbl">
+      <tbody>
+        <tr><td>تعداد تخصص لازم</td><td class="num">صفر</td></tr>
+        <tr><td>هزینه ماهانه</td><td class="num">{{ money(roi.price) }} تومان</td></tr>
+        <tr><td>زمان تا اولین خروجی</td><td class="num">چند دقیقه</td></tr>
+        <tr><td>مدیریت و هماهنگی</td><td>خودکار</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="callout">
+  <span class="icon">🧮</span>
+  <p>یعنی ماهی <b>{{ money(roi.saving) }} تومان</b> صرفه‌جویی —
+     پکیج {{ roi.name }} <b>{{ fa('%.0f' | format(roi.multiple)) }} برابر</b>
+     ارزان‌تر از ساختن یک تیم است، و از روز اول کار می‌کند.</p>
+</div>
+{% endblock %}

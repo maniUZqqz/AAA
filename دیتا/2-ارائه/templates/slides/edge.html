@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block subtitle %}<p class="sub">اشکال راه‌حل‌های موجود و مزیت ما</p>{% endblock %}
+{% block content %}
+<div class="grid split">
+  <div class="card bad">
+    <h3><span class="icon">🔴</span> راه‌حل‌های فعلی</h3>
+    <ol class="numlist">
+      <li><b>استخدام تیم داخلی</b> — {{ fa(d.problem.roles | length) }} تخصص جداگانه،
+          حداقل {{ compact(d.problem.team_cost_monthly) }} تومان در ماه، مدیریت پیچیده</li>
+      <li><b>آژانس تبلیغاتی</b> — هزینه‌های نامشخص، کنترل کم روی فرایند، وابستگی بلندمدت</li>
+      <li><b>ابزارهای AI موجود</b> — فقط یک یا دو حوزه، خروجی ناهماهنگ،
+          نیاز به مهارت پرامپت‌نویسی کاربر</li>
+    </ol>
+  </div>
+
+  <div class="card ok">
+    <h3><span class="icon">🟢</span> مزیت آپ‌مارکت</h3>
+    <ul class="list ok">
+      <li>همه‌چیز در یک پلتفرم — متن، تصویر، ویدیو، کپشن و پشتیبانی فروش</li>
+      <li>هزینه‌ی پکیج حرفه‌ای {{ money(d.problem.team_cost_monthly / m.packages[1].price, 0) }} برابر
+          کمتر از استخدام تیم کامل</li>
+      <li>بدون نیاز به تخصص — فقط اطلاعات محصول را وارد کنید</li>
+      <li>خروجی یکپارچه و هماهنگ، نه چند قطعه‌ی پراکنده</li>
+      <li>تحلیل خودکار رقبا با ریسرچ واقعی وب + پیشنهاد استراتژی</li>
+    </ul>
+  </div>
+</div>
+
+<div class="grid g4">
+  {% for e in d.competitors.edges %}
+  <div class="card accent">
+    <h3><span class="badge info">{{ e.n }}</span> {{ e.title }}</h3>
+    <p>{{ e.desc }}</p>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

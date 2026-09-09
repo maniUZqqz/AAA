@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block subtitle %}<p class="sub">{{ d.customer_value.headline }}</p>{% endblock %}
+{% block content %}
+<div class="grid g3">
+  {% for p in m.customer_roi() %}
+  <div class="card {{ 'accent' if p.highlight }}">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h3>{{ p.name }}</h3>
+      {% if p.highlight %}<span class="badge ok">پیشنهاد ما</span>{% endif %}
+    </div>
+    <div class="tile flat" style="border:none;background:none;padding:4px 0;text-align:right">
+      <span class="v">{{ money(p.price) }}</span>
+      <span class="d">تومان در ماه</span>
+    </div>
+    <ul class="list ok">
+      <li>{{ fa(p.video_sec) }} ثانیه ویدیوی تبلیغاتی با صداگذاری</li>
+      <li>{{ fa(p.posters) }} پوستر از عکس واقعی محصول</li>
+      <li>{{ fa(p.captions) }} کپشن آماده‌ی انتشار</li>
+      <li>پشتیبان فروش ۲۴ ساعته</li>
+      <li>تحلیل محصول و رقبا</li>
+    </ul>
+    <div class="meter ok"><span style="width:{{ (p.cheaper_by * 100) | round(1) }}%"></span></div>
+    <div class="note">
+      {{ pct(p.cheaper_by) }} ارزان‌تر از تیم داخلی ·
+      صرفه‌جویی {{ compact(p.saving) }} تومان در ماه
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid split">
+  <div class="card">
+    <h3><span class="icon">⚖️</span> مقایسه با تیم داخلی</h3>
+    <div class="scroll-x">
+      <table class="tbl">
+        <thead><tr><th>پکیج</th><th>قیمت ماهانه</th><th>صرفه‌جویی شما</th><th>چند برابر ارزان‌تر</th></tr></thead>
+        <tbody>
+          {% for p in m.customer_roi() %}
+          <tr class="{{ 'hi' if p.highlight }}">
+            <td>{{ p.name }}</td>
+            <td class="num">{{ money(p.price) }}</td>
+            <td class="num good">{{ money(p.saving) }}</td>
+            <td class="num">{{ fa('%.0f' | format(p.multiple)) }}×</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <caption>مبنا: {{ d.customer_value.baseline_label }} — {{ money(d.problem.team_cost_monthly) }} تومان</caption>
+      </table>
+    </div>
+  </div>
+
+  <div class="callout">
+    <span class="icon">🎁</span>
+    <p>قبل از هر پرداختی، <b>دو هفته رایگان</b> امتحان کنید.
+       خروجی واقعی برای محصولات خودتان می‌گیرید — نه نمونه‌ی تبلیغاتی.
+       اگر نتیجه نگرفتید، <b>هیچ هزینه‌ای نمی‌پردازید</b>.</p>
+  </div>
+</div>
+{% endblock %}

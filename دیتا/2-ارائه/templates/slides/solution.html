@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block subtitle %}<p class="sub">{{ d.solution.headline }}</p>{% endblock %}
+{% block content %}
+<p class="sub" style="color:var(--text-2)">{{ d.solution.lead }}</p>
+
+<div class="grid split">
+  <div class="grid g2">
+    {% for o in d.solution.outputs %}
+    <div class="card accent">
+      <h3><span class="icon">{{ o.icon }}</span> {{ o.text }}</h3>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="grid" style="gap:12px">
+    <div class="card">
+      <h3><span class="icon">📦</span> ورودی</h3>
+      <p>{{ d.solution.input }}</p>
+    </div>
+    <div style="text-align:center;font-size:1.6rem;color:var(--brand)">↓</div>
+    <div class="card accent" style="text-align:center">
+      <h3 style="justify-content:center">{{ d.meta.brand_fa }}</h3>
+      <p>{{ d.meta.brand_en }}</p>
+    </div>
+    <div style="text-align:center;font-size:1.6rem;color:var(--brand-3)">↓</div>
+    <div class="card ok">
+      <h3><span class="icon">🚀</span> {{ d.solution.result }}</h3>
+      <p>در چند دقیقه، نه چند هفته</p>
+    </div>
+  </div>
+</div>
+
+<div class="callout">
+  <span class="icon">🔭</span>
+  <p>{{ d.solution.vision }}</p>
+</div>
+{% endblock %}

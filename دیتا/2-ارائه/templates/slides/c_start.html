@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block header %}{% endblock %}
+{% block content %}
+{% set roi = m.headline_roi %}
+<div class="cover">
+  <span class="tag">{{ d.customer_value.cta.title }}</span>
+  <div class="mark" style="font-size:clamp(2rem,5vw,3.4rem)">همین امروز شروع کنید</div>
+  <div class="rule" style="margin-inline:auto"></div>
+  <p class="lead">{{ d.customer_value.cta.desc }}</p>
+
+  <div class="grid g3" style="width:100%;max-width:900px;margin-top:8px">
+    {% for n, icon, title, desc in [
+        ('۱', '🏪', 'فروشگاه‌تان را ثبت کنید', 'نام برند، لحن و چند محصول با عکس'),
+        ('۲', '⚡', 'محتوا را تحویل بگیرید', 'پوستر، ویدیو و کپشن در چند دقیقه'),
+        ('۳', '🚀', 'تأیید و انتشار', 'هرچه پسندیدید منتشر می‌شود')] %}
+    <div class="card accent">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="badge info">{{ n }}</span><span class="icon">{{ icon }}</span>
+      </div>
+      <h3>{{ title }}</h3>
+      <p>{{ desc }}</p>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="grid g3" style="width:100%;max-width:900px">
+    <div class="tile"><span class="v">{{ compact(roi.saving) }}</span><span class="l">تومان صرفه‌جویی ماهانه</span></div>
+    <div class="tile"><span class="v">{{ money(roi.price) }}</span><span class="l">قیمت پکیج {{ roi.name }} (تومان)</span></div>
+    <div class="tile"><span class="v">۰</span><span class="l">هزینه‌ی دو هفته‌ی اول</span></div>
+  </div>
+
+  <p class="lead" style="margin-top:10px">
+    <b style="color:var(--text)">{{ d.meta.brand_fa }}</b> — {{ d.meta.tagline }}
+  </p>
+</div>
+{% endblock %}

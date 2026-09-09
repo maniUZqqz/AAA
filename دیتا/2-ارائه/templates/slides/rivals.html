@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block subtitle %}<p class="sub">ماتریس موقعیت‌یابی و مزیت رقابتی</p>{% endblock %}
+{% block content %}
+{% set mx = d.competitors.matrix %}
+<div class="card">
+  <h3><span class="icon">🗺️</span> کجا می‌ایستیم</h3>
+  <div class="matrix">
+    <div></div>
+    {% for label in mx.x_axis %}<div class="axis-x">{{ label }}</div>{% endfor %}
+
+    {% for row in range(2) %}
+      <div class="axis-y">{{ mx.y_axis[row] }}</div>
+      {% for col in range(2) %}
+        {% set cell = mx.cells | selectattr('row', 'equalto', row) | selectattr('col', 'equalto', col) | first %}
+        <div class="cell {{ 'us' if cell.us }}">
+          <span>{{ cell.names }}</span>
+          {% if cell.us %}<span class="us-tag">⬆ {{ d.meta.brand_fa }} — جای ماست</span>{% endif %}
+        </div>
+      {% endfor %}
+    {% endfor %}
+  </div>
+  <div class="note">{{ mx.note }}</div>
+</div>
+
+<div class="grid g2">
+  {% for group, title, icon, badge in [
+       (d.competitors.domestic, 'رقبای داخلی', '🔴', 'ایران'),
+       (d.competitors.foreign,  'رقبای خارجی', '🔵', 'بین‌المللی')] %}
+  <div class="card">
+    <h3><span class="icon">{{ icon }}</span> {{ title }} <span class="badge info">{{ badge }}</span></h3>
+    <div class="scroll-x">
+      <table class="tbl">
+        <thead><tr><th>رقیب</th><th>نوع</th><th>نقطه‌ضعف</th><th>تفاوت ما</th></tr></thead>
+        <tbody>
+          {% for c in group %}
+          <tr>
+            <td><b>{{ c.name }}</b></td>
+            <td style="color:var(--text-3)">{{ c.type }}</td>
+            <td class="poor">{{ c.weakness }}</td>
+            <td class="good">{{ c.our_edge }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid g3">
+  {% for t in d.market.trends %}
+  <div class="card">
+    <h3><span class="icon">{{ {'up':'📈','down':'📉','flat':'📊'}[t.dir] }}</span> {{ t.label }}</h3>
+    <div style="display:flex;align-items:center;gap:10px;font-size:1.15rem;font-weight:700">
+      <span style="color:var(--text-3)">{{ t['from'] }}</span>
+      <span style="color:var(--brand)">←</span>
+      <span>{{ t['to'] }}</span>
+    </div>
+    <p>{{ t.note }}</p>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="callout">
+  <span class="icon">🎯</span>
+  <p>بیشتر رقبا یا <b>ابزار تخصصی</b> هستند، یا <b>آژانس خدماتی</b>، یا
+     <b>پلتفرم عمومی بومی‌نشده</b>. آپ‌مارکت بین این‌ها می‌ایستد:
+     یک محصول AI-first که به‌جای فروش یک ابزار،
+     <b>کل فرایند بازاریابی کسب‌وکار کوچک ایرانی را ساده می‌کند</b>.</p>
+</div>
+{% endblock %}

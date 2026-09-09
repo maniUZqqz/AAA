@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block subtitle %}<p class="sub">نقاط قوت · ضعف · فرصت‌ها · تهدیدها</p>{% endblock %}
+{% block content %}
+<div class="grid g4">
+  {% for key, title, icon, cls, listcls in [
+      ('strengths',     'نقاط قوت', '💪', 'ok',   'ok'),
+      ('weaknesses',    'نقاط ضعف', '⚠️', 'warn', 'bad'),
+      ('opportunities', 'فرصت‌ها',  '🌱', 'accent', ''),
+      ('threats',       'تهدیدها',  '🚨', 'bad',  'bad')] %}
+  <div class="card {{ cls }}">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h3><span class="icon">{{ icon }}</span> {{ title }}</h3>
+      <span class="badge info">{{ fa(d.swot[key] | length) }}</span>
+    </div>
+    <ol class="numlist">
+      {% for item in d.swot[key] %}<li>{{ item }}</li>{% endfor %}
+    </ol>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid g4">
+  {% for q in d.swot.quadrants %}
+  <div class="tile flat">
+    <span class="v" style="font-size:1.5rem">{{ q.icon }}</span>
+    <span class="d">{{ q.axis }}</span>
+    <span class="l">{{ q.text }}</span>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="callout">
+  <span class="icon">🎯</span>
+  <p>بزرگ‌ترین فرصت: بازاری با <b>{{ fa('{:,}'.format(d.market.sam.min).replace(',', '٬')) }}+ کسب‌وکار</b>
+     و نرخ پذیرش AI نزدیک به صفر.
+     بزرگ‌ترین ریسک: <b>حقوق تیم</b> که {{ pct(m.fixed_lines[-1].amount / m.fixed_total) }} هزینه‌ی ثابت است،
+     و <b>سقف سخت‌افزاری {{ fa(m.max_customers) }} مشتری</b> که رشد را پله‌ای می‌کند.
+     هر دو با رسیدن سریع به سر به سر ({{ fa(m.break_even) }} مشتری) مهار می‌شوند.</p>
+</div>
+{% endblock %}

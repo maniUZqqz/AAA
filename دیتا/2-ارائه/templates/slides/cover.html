@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block header %}{% endblock %}
+{% block content %}
+<div class="cover">
+  <span class="tag">{{ d.meta.tagline }}</span>
+  <div class="mark">{{ d.meta.brand_fa }}</div>
+  <p class="slogan">{{ d.meta.brand_en }}</p>
+  <div class="rule" style="margin-inline:auto"></div>
+  <p class="lead">{{ d.meta.one_liner }}</p>
+
+  <div class="grid g4" style="width:100%;margin-top:clamp(14px,2.5vw,34px)">
+    <div class="tile"><span class="v">{{ fa(d.market.sam.min // 1000) }}K+</span>
+      <span class="l">کسب‌وکار آنلاین در ایران</span></div>
+    <div class="tile"><span class="v">{{ money(d.problem.team_cost_monthly / 1000000) }}M</span>
+      <span class="l">هزینه ماهانه تیم بازاریابی</span></div>
+    <div class="tile"><span class="v">{{ money(m.packages[0].price / 1000) }}K</span>
+      <span class="l">شروع قیمت آپ‌مارکت</span></div>
+    <div class="tile"><span class="v">{{ fa(d.product.stats[1].value) }}</span>
+      <span class="l">تست سبز — محصول ساخته شده</span></div>
+  </div>
+
+  <p class="note" style="margin-top:10px">
+    نسخه {{ fa(d.meta.version) }} — {{ d.meta.updated }}
+  </p>
+</div>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block subtitle %}<p class="sub">از تولید محتوا تا اکوسیستم کامل بازاریابی</p>{% endblock %}
+{% block content %}
+<div class="grid g5">
+  {% for r in d.roadmap %}
+  <div class="card {{ 'ok' if r.done else '' }}">
+    <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+      <span class="badge {{ 'ok' if r.done else 'info' }}">{{ r.phase }}</span>
+      <span class="chip">{{ r.time }}</span>
+    </div>
+    <h3>{{ r.title }}</h3>
+    <ul class="list {{ 'ok' if r.done else '' }}">
+      {% for item in r['items'] %}<li>{{ item }}</li>{% endfor %}
+    </ul>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid g4">
+  <div class="tile ok"><span class="v">MVP</span><span class="l">امروز — کامل و تست‌شده</span></div>
+  <div class="tile"><span class="v">{{ fa(3) }} ماه</span><span class="l">اتصال مستقیم به اینستاگرام</span></div>
+  <div class="tile"><span class="v">{{ fa(12) }} ماه</span><span class="l">استراتژی ماهانه‌ی خودکار</span></div>
+  <div class="tile"><span class="v">{{ fa(2) }} سال</span><span class="l">مدل اختصاصی و API عمومی</span></div>
+</div>
+
+<div class="callout">
+  <span class="icon">🚀</span>
+  <p>MVP امروز <b>کامل‌ترین بسته‌ی تولید محتوا</b> است.
+     نقشه‌ی راه آن را به یک اکوسیستم کامل تبدیل می‌کند —
+     از تولید تا انتشار، از تحلیل تا فروش.
+     مسیر روشن است؛ آنچه می‌ماند زمان اجرا و ظرفیت سخت‌افزار است.</p>
+</div>
+{% endblock %}

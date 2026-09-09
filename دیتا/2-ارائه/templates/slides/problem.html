@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block subtitle %}<p class="sub">{{ d.problem.headline }}</p>{% endblock %}
+{% block content %}
+<p class="sub" style="color:var(--text-2)">{{ d.problem.lead }}</p>
+
+<div class="grid g3">
+  {% for r in d.problem.roles %}
+  <div class="card">
+    <h3><span class="icon">{{ r.icon }}</span> {{ r.role }}</h3>
+    <p>{{ r.task }}</p>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid g3">
+  <div class="tile bad">
+    <span class="v">{{ compact(d.problem.team_cost_monthly) }}</span>
+    <span class="l">تومان در ماه — حداقل هزینه تیم داخلی</span>
+  </div>
+  <div class="tile warn">
+    <span class="v">{{ fa(d.problem.roles | length) }}</span>
+    <span class="l">تخصص جداگانه که باید استخدام و هماهنگ شوند</span>
+  </div>
+  <div class="tile">
+    <span class="v">{{ money(d.problem.team_cost_monthly / m.packages[1].price, 0) }}×</span>
+    <span class="l">گران‌تر از پکیج حرفه‌ای آپ‌مارکت</span>
+  </div>
+</div>
+
+<div class="callout">
+  <span class="icon">🧩</span>
+  <p>{{ d.problem.conclusion }}</p>
+</div>
+{% endblock %}
