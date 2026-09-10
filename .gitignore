@@ -1,0 +1,39 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ---- محیط و راز ----
+.env
+.env.*
+!.env.example
+*.backup-*
+
+# ---- دیتابیس و مدیا ----
+*.sqlite3
+db.sqlite3
+media/
+staticfiles/
+
+# ---- Node ----
+node_modules/
+dist/
+.next/
+*.tsbuildinfo
+
+# ---- ردیس پرتابل ----
+Code/UpMarket/redis/*.rdb
+Code/UpMarket/redis/*.log
+
+# ---- سیستم‌عامل و ادیتور ----
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/
+
+# ---- خروجی موقت ----
+*.log
+*.tmp

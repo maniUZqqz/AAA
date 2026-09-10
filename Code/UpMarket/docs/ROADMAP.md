@@ -1,9 +1,12 @@
 # UpMarket — Roadmap (pointer)
 
-The single source of truth for the roadmap, phase checklist, and the full Master Development Specification is the root file:
+مرجع واحد رودمپ، چک‌لیست فازها و Master Development Specification فایل ریشه است:
 
 **[`../ROADMAP.md`](../ROADMAP.md)**
 
-Phase order: 0 (architecture) → 0.5 (real model pipeline test) → 1 Foundation → 2 Stores → 3 Products → 4 AI Infrastructure → 5 Product Intelligence → 6 Market Intelligence → 7 Sales Agent → 8 ComfyUI Foundation → 9 Image Studio → 10 Captions → 11 Video Script → 12 Video Engine → 13 Voice → 14 Campaign Workspace → 15 n8n Publishing → 16 Analytics → 17 Production Hardening.
+- بخش ۵ — دوره‌ی اول (فاز ۰ تا ۱۷)
+- بخش ۷ — نقص‌های تأییدشده
+- بخش ۸ تا ۱۰ — معماری، سیستم‌های جدید، تصمیم‌های باز
+- بخش ۱۱ — دوره‌ی دوم (فاز ۰.۵ و ۱۸ تا ۲۶)
 
-Do not duplicate roadmap content here — update the root file and tick its checkboxes as phases complete.
+فهرست فازها اینجا تکرار نمی‌شود — کهنه می‌شود. فایل ریشه را به‌روز کن.

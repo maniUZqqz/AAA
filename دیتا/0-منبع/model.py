@@ -67,6 +67,22 @@ class Model:
         self.min_per_video_sec = r["video_gpu_min_per_second"]
         self.min_per_poster = r["poster_gpu_min_per_image"]
 
+        # زمان GPUی مدل‌های زبانی و سواپ مدل. تا اندازه‌گیری نشده‌اند null
+        # می‌مانند و در محاسبه صفر اثر دارند — ولی مدل این را به‌عنوان
+        # «نامعلوم» گزارش می‌کند، نه «صفر». تفاوتش حیاتی است: ظرفیت واقعی
+        # فقط می‌تواند از عدد فعلی کمتر شود، نه بیشتر.
+        self.llm_min = r.get("llm_gpu_min_per_customer")
+        self.swap_min = r.get("model_swap_min_per_customer")
+        self.render_verified = bool(r.get("verified", False))
+        self.unmeasured = [
+            label
+            for label, value in (
+                ("زمان GPU مدل‌های زبانی", self.llm_min),
+                ("زمان سواپ مدل", self.swap_min),
+            )
+            if value is None
+        ]
+
         self.gpu_min_raw = (
             len(self.systems) * a["uptime_hours_per_day"] * a["days_per_month"] * 60
         )
@@ -78,6 +94,8 @@ class Model:
             gpu_min = (
                 p["video_sec"] * self.min_per_video_sec
                 + p["posters"] * self.min_per_poster
+                + (self.llm_min or 0)
+                + (self.swap_min or 0)
             )
             videos = math.ceil(p["video_sec"] / self.max_single_video_sec_hint)
             self.packages.append(dict(
@@ -109,6 +127,23 @@ class Model:
             )
             self.fixed_lines.append(dict(row, amount=amount))
         self.fixed_total = sum(row["amount"] for row in self.fixed_lines)
+
+        # سه لایه‌ی هزینه، چون سه سؤال متفاوت‌اند:
+        #   نقدی   — این ماه چقدر پول از حساب بیرون می‌رود؟ (بقا)
+        #   بازیابی — استهلاک سخت‌افزارِ خریداری‌شده هم برگردد
+        #   کامل   — اگر شرکا هم حقوق بگیرند (پایداری بلندمدت)
+        # حقوق دو شریک هزینه‌ی فرصت است نه خروج نقدی؛ قاطی‌کردنشان
+        # نقطه‌ی سر به سر را ۵ برابر بزرگ‌تر از واقعیت نشان می‌داد.
+        self.fixed_cash = sum(
+            r["amount"] for r in self.fixed_lines if r.get("kind") == "cash"
+        )
+        self.fixed_depreciation = sum(
+            r["amount"] for r in self.fixed_lines if r.get("kind") == "depreciation"
+        )
+        self.fixed_opportunity = sum(
+            r["amount"] for r in self.fixed_lines if r.get("kind") == "opportunity"
+        )
+        self.fixed_recovery = self.fixed_cash + self.fixed_depreciation
         self.electricity = next(
             row["amount"] for row in self.fixed_lines if "برق" in row["label"]
         )
@@ -135,6 +170,8 @@ class Model:
         self.contribution_today = self.avg_revenue - self.variable_today
         self.contribution_planned = self.avg_revenue - self.variable_planned
         self.break_even = math.ceil(self.fixed_total / self.contribution)
+        self.break_even_cash = math.ceil(self.fixed_cash / self.contribution)
+        self.break_even_recovery = math.ceil(self.fixed_recovery / self.contribution)
         self.break_even_today = math.ceil(self.fixed_total / self.contribution_today)
         self.break_even_planned = math.ceil(self.fixed_total / self.contribution_planned)
         self.max_customers = math.floor(self.gpu_min_usable / self.avg_gpu_min)
@@ -176,6 +213,150 @@ class Model:
         self.expansion["pnl"] = self.pnl(
             self.expansion["max_customers"], extra_fixed=extra_fixed
         )
+
+    # -------------------------------------------- حساسیت به سرعت رندر
+
+    def render_scenarios(self) -> list:
+        """ظرفیت و سود در هر سه سرعت رندری که واقعاً دیده شده.
+
+        دو اجرای واقعی ۱۵ و ۴۵ دقیقه برای ۵ ثانیه دادند (۳ و ۹ دقیقه بر
+        ثانیه). مدل روی ۴ بسته شده که به هیچ اجرایی وصل نیست. این تابع
+        نشان می‌دهد انتخاب تنظیمات رندر چقدر کل کسب‌وکار را جابه‌جا می‌کند.
+        """
+        rng = self.d["render"].get("video_gpu_min_per_second_range")
+        if not rng:
+            return []
+        rows = []
+        for key, label in (("fast", "سریع"), ("typical", "میانی (فرض فعلی)"), ("slow", "کند")):
+            per_sec = rng[key]
+            gpu_min = (
+                self.avg_video_sec * per_sec
+                + self.avg_posters * self.min_per_poster
+                + (self.llm_min or 0)
+                + (self.swap_min or 0)
+            )
+            ceiling = math.floor(self.gpu_min_usable / gpu_min)
+            rows.append({
+                "key": key,
+                "label": label,
+                "min_per_sec": per_sec,
+                "sec_per_5": per_sec * 5,
+                "gpu_min": gpu_min,
+                "ceiling": ceiling,
+                "covers_cash": ceiling >= self.break_even_cash,
+                "covers_full": ceiling >= self.break_even,
+                "net_at_ceiling": self.pnl(ceiling)["net"],
+            })
+        return rows
+
+    # ------------------------------------------ حساسیت به حقوق مارکتر
+
+    def salary_scenarios(self) -> list:
+        """تنها حقوق نقدی واقعی، و هنوز طی نشده — پس بازه‌اش مهم است.
+
+        اعداد از گزارش حقوق جاب‌ویژن ۱۴۰۵ (صدک ۲۵ / میانه / صدک ۷۵ برای
+        کارشناس تهران) می‌آیند. چون ۹۳٪ هزینه‌ی نقدی همین یک ردیف است،
+        جابه‌جایی‌اش مستقیم روی «چند مشتری تا بقا» می‌نشیند.
+        """
+        row = next(
+            (r for r in self.fixed_lines if "مارکتر" in r["label"]), None
+        )
+        spec = next(
+            (a for a in self.d["assumptions"] if a["key"] == "salary_sensitivity"), None
+        )
+        if not row or not spec:
+            return []
+        overhead = row.get("basis", {}).get("employer_overhead", 1.0)
+        others = self.fixed_cash - row["amount"]
+        labels = ("صدک ۲۵", "میانه", "صدک ۷۵")
+        rows = []
+        for label, net in zip(labels, spec["value"]):
+            for with_ins, tag in ((False, "بدون بیمه"), (True, "با بیمه و عیدی")):
+                cost = net * (overhead if with_ins else 1.0)
+                cash = others + cost
+                rows.append({
+                    "label": f"{label} · {tag}",
+                    "net": net,
+                    "employer_cost": cost,
+                    "fixed_cash": cash,
+                    "break_even": math.ceil(cash / self.contribution),
+                })
+        return rows
+
+    # ------------------------------------ رشد خودتأمین سخت‌افزار
+
+    def growth_ladder(self, months: int = 36, start_customers: int = 0) -> dict:
+        """هر سیستم بعدی از سود خودِ پروژه خریده می‌شود، نه از سرمایه‌ی بیرونی.
+
+        قانون مالک: «پول سخت‌افزار را خود پروژه دربیاورد.»
+
+        شبیه‌سازی ماه‌به‌ماه: مشتری تا سقف ظرفیت رشد می‌کند، سود انباشته
+        می‌شود، و هر وقت به قیمت یک سیستم رسید سیستم بعدی خریده می‌شود.
+        محدودیت واقعی این است که تا ظرفیت پر نشود سود کامل نمی‌آید، و تا
+        سود نیاید ظرفیت اضافه نمی‌شود — پس رشد پله‌ای و کند است.
+        """
+        e = self.d["expansion"]
+        a = self.a
+        price = e.get("system_price", e["third_system_price"])
+        elec = e.get("system_electricity", e["third_system_electricity"])
+        cap_limit = e.get("max_systems_modeled", 40)
+
+        per_system_gpu_min = (
+            a["uptime_hours_per_day"] * a["days_per_month"] * 60 * (1 - a["derate"])
+        )
+        per_system_customers = math.floor(per_system_gpu_min / self.avg_gpu_min)
+
+        systems = len(self.systems)
+        customers = start_customers
+        cash = 0.0
+        purchases = []
+        timeline = []
+
+        # سرعت جذب مشتری در ماه — از منحنی رشد ۱۲ ماهه‌ی خود داده
+        g = self.d["growth_12m"]
+        monthly_adds = max(1, max(g[i] - g[i - 1] for i in range(1, len(g))))
+
+        for m in range(1, months + 1):
+            ceiling = systems * per_system_customers
+            customers = min(ceiling, customers + monthly_adds)
+            extra_elec = (systems - len(self.systems)) * elec
+            net = self.pnl(customers, extra_fixed=extra_elec)["net"]
+            cash += net
+            bought = 0
+            # سیستم فقط وقتی خریده می‌شود که واقعاً لازم باشد — یعنی ماه
+            # بعد به سقف می‌خوریم. خرید زودتر یعنی ۳۰۰ میلیون سخت‌افزار
+            # بی‌کار، که هم پول را می‌سوزاند هم برق مصرف می‌کند.
+            while (
+                cash >= price
+                and systems < cap_limit
+                and customers + monthly_adds > systems * per_system_customers
+            ):
+                cash -= price
+                systems += 1
+                bought += 1
+                purchases.append({"month": m, "systems": systems})
+            timeline.append({
+                "month": m, "systems": systems, "ceiling": ceiling,
+                "customers": customers, "net": net, "cash": cash, "bought": bought,
+            })
+
+        final = timeline[-1]
+        som_min = self.d["market"]["som"]["min"]
+        return {
+            "per_system_customers": per_system_customers,
+            "system_price": price,
+            "months": months,
+            "monthly_adds": monthly_adds,
+            "timeline": timeline,
+            "purchases": purchases,
+            "final_systems": final["systems"],
+            "final_customers": final["customers"],
+            "final_ceiling": final["ceiling"],
+            "som_min": som_min,
+            "systems_for_som": math.ceil(som_min / per_system_customers),
+            "capex_for_som": (math.ceil(som_min / per_system_customers) - len(self.systems)) * price,
+            "som_reachable": final["customers"] >= som_min,
+        }
 
     # ------------------------------------------------------------ زیرساخت
 
@@ -334,6 +515,13 @@ def _report(m: Model) -> None:
     print(bar)
     print("  مدل مالی آپ‌مارکت — محاسبه‌شده از data.json")
     print(bar)
+    if not m.render_verified:
+        print("  ⚠️  اعداد رندر اندازه‌گیری نشده‌اند (render.verified = false).")
+        print("      ظرفیت، سر به سر و بازگشت سرمایهٔ زیر تخمین‌اند، نه پیش‌بینی.")
+        if m.unmeasured:
+            print(f"      شمرده نشده: {' · '.join(m.unmeasured)}")
+            print("      ظرفیت واقعی فقط می‌تواند کمتر از این شود، نه بیشتر.")
+        print(bar)
     print(f"  سرمایه سخت‌افزار         {money(m.capex)} تومان")
     print(f"  استهلاک ماهانه           {money(m.depreciation)} تومان")
     print(f"  هزینه ثابت ماهانه        {money(m.fixed_total)} تومان")
@@ -347,6 +535,17 @@ def _report(m: Model) -> None:
     print(f"  هزینه متغیر هر مشتری     {money(m.variable_per_customer)} تومان"
           f"   (امروز فقط {money(m.variable_today)})")
     print(f"  حاشیه مشارکت             {money(m.contribution)} تومان")
+    print()
+    print()
+    print("  نقطه سر به سر — سه لایه، چون سه سؤال متفاوت‌اند:")
+    print(f"    بقا (فقط پول نقدِ خارج‌شونده)      {fa(m.break_even_cash):>4} مشتری  "
+          f"= {compact(m.fixed_cash)} تومان/ماه")
+    print(f"    + بازیابی سخت‌افزار خریداری‌شده   {fa(m.break_even_recovery):>4} مشتری  "
+          f"= {compact(m.fixed_recovery)} تومان/ماه")
+    print(f"    + حقوق شرکا (پایداری بلندمدت)     {fa(m.break_even):>4} مشتری  "
+          f"= {compact(m.fixed_total)} تومان/ماه")
+    print(f"    دو شریک برنامه‌نویس حقوق نمی‌گیرند؛ {compact(m.fixed_opportunity)} تومان")
+    print("    هزینه‌ی فرصت است نه خروج نقدی.")
     print()
     print(f"  * نقطه سر به سر          {fa(m.break_even)} مشتری   (سناریوی پایه)")
     print(f"    امروز، تا وقتی اینستاگرام وصل نشده: {fa(m.break_even_today)} مشتری")
@@ -373,6 +572,57 @@ def _report(m: Model) -> None:
     e = m.expansion
     print(f"  با {e['label']} ({fa(e['max_customers'])} مشتری): "
           f"سود {compact(e['pnl']['net'])} تومان/ماه، حاشیه {pct(e['pnl']['margin'])}")
+    ss = m.salary_scenarios()
+    if ss:
+        print()
+        print("  حساسیت به حقوق مارکتر — تنها حقوق نقدی واقعی، هنوز طی نشده:")
+        print("    سناریو                    حقوق خالص   هزینه کارفرما   سر به سر نقدی")
+        for r in ss:
+            print(f"    {r['label']:<24} {compact(r['net']):>10} {compact(r['employer_cost']):>14}"
+                  f"   {fa(r['break_even']):>4} مشتری")
+
+    rs = m.render_scenarios()
+    if rs:
+        print()
+        print("  حساسیت به سرعت رندر — دو اجرای واقعی ۱۵ و ۴۵ دقیقه دادند:")
+        print("    تنظیم                 هر ۵ ثانیه   سقف ظرفیت   سود در سقف")
+        for row in rs:
+            flag = "" if row["covers_full"] else ("  <-- زیر سر به سر کامل"
+                                                 if row["covers_cash"]
+                                                 else "  <-- زیر سر به سر نقدی!")
+            print(f"    {row['label']:<20} {fa(int(row['sec_per_5'])):>5} دقیقه "
+                  f"{fa(row['ceiling']):>10} مشتری  {compact(row['net_at_ceiling']):>12}{flag}")
+        if not all(r["covers_full"] for r in rs):
+            print("    ⚠️ انتخاب تنظیمات رندر تصمیم فنی نیست — تصمیم بقاست.")
+            print("       فاز ۰.۵ باید بگوید کدام تنظیم کیفیت قابل‌فروش می‌دهد.")
+
+    g = m.growth_ladder()
+    print()
+    print(f"  رشد خودتأمین سخت‌افزار (هر سیستم {compact(g['system_price'])} از سود خودِ پروژه):")
+    print(f"    ظرفیت هر سیستم           {fa(g['per_system_customers'])} مشتری")
+    print(f"    بعد از {fa(g['months'])} ماه            {fa(g['final_systems'])} سیستم · "
+          f"{fa(g['final_customers'])} مشتری")
+    if g["purchases"]:
+        first = g["purchases"][0]
+        print(f"    اولین خرید خودتأمین      ماه {fa(first['month'])}")
+    else:
+        print("    ⚠️ در این بازه سود به قیمت یک سیستم نمی‌رسد — رشد خودتأمین شروع نمی‌شود.")
+    print(f"    برای هدف {compact(g['som_min'])} مشتری     {fa(g['systems_for_som'])} سیستم لازم است "
+          f"(~{compact(g['capex_for_som'])} تومان سرمایه)")
+    if not g["som_reachable"]:
+        print(f"    ⚠️ هدف {compact(g['som_min'])} مشتری در {fa(g['months'])} ماه با رشد خودتأمین "
+              "شدنی نیست.")
+        print("       یا هدف بازار باید واقعی شود، یا سرمایه‌ی بیرونی لازم است.")
+
+    chat = m.d["variable_costs"].get("chat_sales_agent")
+    if chat and not chat.get("active"):
+        print()
+        print("  ⚠️  هزینه‌ی چت ایجنت فروش هنوز صفر است. سه عدد لازم:")
+        print("      ۱. هزینه‌ی پلتفرم (اینستاگرام/نوین‌هاب بابت دایرکت)")
+        print("      ۲. قیمت متیس ای‌آی — اگر چت به API برود")
+        print("      ۳. تعداد پیام ماهانه‌ی هر فروشگاه")
+        print("      اولاما لوکال هزینه‌ی ریالی ندارد ولی از همین سقف ظرفیت می‌خورد.")
+
     print()
     print("  کارهای باقی‌مانده:")
     for g in m.gaps:

@@ -37,6 +37,16 @@ def count(pattern: str, sub: str, glob: str = "*.py") -> int:
     return total
 
 
+def count_tests() -> int:
+    """تست‌های واقعی — فقط داخل فایل‌هایی که Django کشف می‌کند (tests*.py).
+
+    شمارش متنی `def test_` روی کل backend اشتباه بود: اکشن ادمین
+    `admin_providers.py:test_connection` را هم تست حساب می‌کرد و عدد را
+    یکی بیشتر نشان می‌داد (۲۱۵ به‌جای ۲۱۴).
+    """
+    return count(r"def test_", "backend", glob="tests*.py")
+
+
 def read(rel: str) -> str:
     path = CODE / rel
     return path.read_text(encoding="utf-8", errors="ignore") if path.exists() else ""
@@ -69,8 +79,10 @@ def main() -> int:
     r = DATA["render"]
     checks = [
         # ── آمار محصول ───────────────────────────────────────────────
-        ("تعداد تست", count(r"def test_", "backend") == tests_claimed,
-         f"کد {count(chr(100)+'ef test_', 'backend')} · داده {tests_claimed}"),
+        # فقط داخل فایل‌های tests*.py می‌شماریم — وگرنه اکشن‌های ادمین مثل
+        # apps/ai/admin_providers.py:test_connection هم تست حساب می‌شوند.
+        ("تعداد تست", count_tests() == tests_claimed,
+         f"کد {count_tests()} · داده {tests_claimed}"),
         ("تعداد دامنه بک‌اند", len(domains) == domains_claimed,
          f"کد {len(domains)} · داده {domains_claimed}"),
         ("سه ورک‌فلوی نسخه‌دار ComfyUI", len(workflows) == 3,
