@@ -1,3 +1,4 @@
+from django.contrib.auth.models import User
 from django.db import models
 
 from apps.common.models import TimeStampedModel
@@ -184,6 +185,53 @@ class ModelProvider(TimeStampedModel):
         help_text="پارامترهای اضافه به‌صورت JSON (temperature، steps، …)",
     )
 
+    # ---- data governance -------------------------------------------------
+    # An external provider is a place our customers' data goes. Recording
+    # where, for how long, and under whose terms is the difference between a
+    # privacy promise and a privacy claim.
+
+    class DataLocation(models.TextChoices):
+        ON_PREMISE = "ON_PREMISE", "روی سرور خودمان"
+        IRAN = "IRAN", "ایران"
+        EU = "EU", "اتحادیه اروپا"
+        US = "US", "آمریکا"
+        OTHER = "OTHER", "جای دیگر"
+        UNKNOWN = "UNKNOWN", "نامشخص"
+
+    class DataClass(models.TextChoices):
+        PRODUCT = "PRODUCT", "محصول (متن و تصویر کالا)"
+        BRAND = "BRAND", "برند (لحن، قوانین، پروفایل فروشگاه)"
+        CUSTOMER = "CUSTOMER", "مشتری (پیام، نام، سفارش)"
+
+    ALL_DATA_CLASSES = [DataClass.PRODUCT, DataClass.BRAND, DataClass.CUSTOMER]
+    # What an external provider may see unless the operator widens it. Customer
+    # messages are excluded on purpose: that data belongs to a third person who
+    # is not in the room when this row is filled in.
+    DEFAULT_EXTERNAL_DATA = [DataClass.PRODUCT, DataClass.BRAND]
+
+    data_location = models.CharField(
+        max_length=12, choices=DataLocation.choices, default=DataLocation.UNKNOWN,
+        verbose_name="داده کجا پردازش می‌شود",
+    )
+    is_approved = models.BooleanField(
+        default=False,
+        verbose_name="تأییدشده",
+        help_text="فروشگاه‌هایی که «فقط سرویس‌های تأییدشده» را انتخاب کرده‌اند، "
+                  "تنها از سرویس‌های تیک‌خورده استفاده می‌کنند.",
+    )
+    allowed_data = models.JSONField(
+        default=list, blank=True,
+        verbose_name="مجاز برای کدام داده",
+        help_text="خالی برای سرویس لوکال یعنی همه‌چیز؛ برای سرویس بیرونی یعنی "
+                  "فقط محصول و برند.",
+    )
+    data_retention = models.CharField(
+        max_length=200, blank=True,
+        verbose_name="نگه‌داری داده",
+        help_text="مثال: «۳۰ روز برای پایش سوءاستفاده» یا «نگه‌داری نمی‌شود».",
+    )
+    privacy_policy_url = models.URLField(blank=True, verbose_name="لینک سیاست حریم خصوصی")
+
     # filled in by the admin "test connection" action
     checked_at = models.DateTimeField(null=True, blank=True)
     is_healthy = models.BooleanField(null=True, blank=True)
@@ -202,6 +250,18 @@ class ModelProvider(TimeStampedModel):
         """Local providers cost GPU minutes; remote ones cost money per call."""
         return self.kind in self.LOCAL_KINDS
 
+    @property
+    def effective_allowed_data(self) -> list[str]:
+        """Data classes this provider may see, with the blank field resolved.
+
+        Blank means "the safe default for this kind", not "everything": a new
+        external provider row saved without thinking about the field must not
+        silently gain access to customer messages.
+        """
+        if self.allowed_data:
+            return list(self.allowed_data)
+        return list(self.ALL_DATA_CLASSES if self.is_local else self.DEFAULT_EXTERNAL_DATA)
+
     def clean(self):
         from django.core.exceptions import ValidationError
 
@@ -215,3 +275,65 @@ class ModelProvider(TimeStampedModel):
             self.Capability.TEXT, self.Capability.VISION,
         }:
             raise ValidationError({"kind": "Ollama فقط متن و تحلیل تصویر انجام می‌دهد."})
+        # "Approved" has to mean something. A row marked approved without a
+        # stated data location is the exact rubber stamp this field exists to
+        # prevent.
+        if self.is_approved and not self.is_local:
+            if self.data_location == self.DataLocation.UNKNOWN:
+                raise ValidationError({
+                    "data_location": "سرویس بیرونی تأییدشده باید مشخص کند داده کجا پردازش می‌شود.",
+                })
+            if not self.data_retention:
+                raise ValidationError({
+                    "data_retention": "سرویس بیرونی تأییدشده باید بگوید داده چقدر نگه داشته می‌شود.",
+                })
+        unknown = set(self.allowed_data or []) - {c.value for c in self.DataClass}
+        if unknown:
+            raise ValidationError({
+                "allowed_data": f"نوع داده‌ی ناشناخته: {'، '.join(sorted(unknown))}",
+            })
+
+
+class StoreAIPolicy(TimeStampedModel):
+    """How much of a store's data is allowed to leave our servers.
+
+    Until this existed, `ModelProvider` was a platform-wide switch: an operator
+    could point TEXT at a foreign API and every store's product copy — and
+    every customer's chat message — would start flowing there, with the store
+    owner neither seeing it nor agreeing to it. That is the whole reason this
+    model has a `store` foreign key and the provider table does not.
+
+    A store with no row here follows the platform default
+    (`AI_DEFAULT_POLICY`), which is HYBRID — the behaviour every install had
+    before this model was added.
+    """
+
+    class Mode(models.TextChoices):
+        LOCAL_ONLY = "LOCAL_ONLY", "فقط لوکال — هیچ داده‌ای از سرور خارج نمی‌شود"
+        APPROVED_EXTERNAL = "APPROVED_EXTERNAL", "فقط سرویس‌های تأییدشده"
+        HYBRID = "HYBRID", "ترکیبی — هر سرویس فعالی، با اعلام شفاف"
+
+    store = models.OneToOneField(Store, on_delete=models.CASCADE, related_name="ai_policy")
+    mode = models.CharField(max_length=20, choices=Mode.choices, default=Mode.HYBRID)
+
+    # Product copy leaving the country is a business decision. A customer's
+    # private message leaving the country is someone else's decision, made
+    # about them, so it is off unless the owner deliberately turns it on.
+    allow_customer_data_external = models.BooleanField(
+        default=False,
+        verbose_name="ارسال پیام‌های مشتری به سرویس بیرونی",
+        help_text="پیش‌فرض خاموش. پیام خصوصی مشتری، داده‌ی خود اوست نه فروشگاه.",
+    )
+
+    # Consent is only meaningful if we can say who gave it and when.
+    acknowledged_at = models.DateTimeField(null=True, blank=True)
+    acknowledged_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+
+    class Meta:
+        verbose_name = "AI data policy"
+        verbose_name_plural = "AI data policies"
+
+    def __str__(self):
+        return f"{self.store.name} · {self.get_mode_display()}"

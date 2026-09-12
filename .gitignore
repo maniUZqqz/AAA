@@ -37,3 +37,12 @@ desktop.ini
 # ---- خروجی موقت ----
 *.log
 *.tmp
+
+# ---- دیپلوی ----
+Code/UpMarket/backups/
+Code/UpMarket/.env
+*.sql.gz
+
+# ---- اسکریپت سینک (مخصوص هر سیستم - پیشوند کامیت فرق دارد) ----
+pull.bat
+push.bat

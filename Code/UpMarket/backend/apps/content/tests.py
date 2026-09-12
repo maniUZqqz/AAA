@@ -517,7 +517,9 @@ class ContentTaskTests(APITestCase):
         generate_voice_task.apply(args=(job.id, script.id))
         job.refresh_from_db()
         self.assertEqual(job.state, Job.State.COMPLETED, job.error)
-        mock_get_tts.assert_called_once_with(language="en")
+        # the store travels with the request: narration text is about to leave
+        # the building, and only the store knows whether that is allowed
+        mock_get_tts.assert_called_once_with(language="en", store=self.store)
 
     def test_script_endpoint_accepts_language(self):
         with patch("apps.content.views.generate_video_script_task") as mock_task:

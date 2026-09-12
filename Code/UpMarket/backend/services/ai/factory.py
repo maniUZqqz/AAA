@@ -1,9 +1,9 @@
-"""Build the provider that should answer a capability right now.
+"""Turn a resolved provider row into a usable client.
 
-Call sites ask for `text_provider()` or `vision_provider()` and get back
-something with `.generate()` / `.generate_json()`. Whether that is the local
-Ollama box or a paid API is decided by the ModelProvider rows in the admin,
-so business logic never mentions a vendor.
+This module knows *how* to speak to Ollama, ComfyUI or an OpenAI-compatible
+API. It deliberately does not decide *whether* a given store's data may go
+there — that is `services.ai.gateway`, and business logic calls the gateway,
+never this module.
 """
 from __future__ import annotations
 
@@ -31,7 +31,15 @@ def build(resolved: providers.Resolved):
     raise ValueError(f"«{resolved.kind}» متن تولید نمی‌کند.")
 
 
-def _for(capability: str):
+def unchecked(capability: str):
+    """Build the top provider for a capability with **no policy check**.
+
+    Only for operator-facing tooling that is about the providers themselves —
+    the admin health probe, `manage.py selftest`. Business logic must go through
+    `services.ai.gateway`, which knows whose data is being sent and whether that
+    store allows it to leave. `apps/ai/tests_boundary.py` fails the build if a
+    task or view imports this.
+    """
     chosen = providers.primary(capability)
     if chosen is None:
         return OllamaProvider(), None
@@ -40,27 +48,6 @@ def _for(capability: str):
         capability, chosen.name, chosen.kind, chosen.model_name,
     )
     return build(chosen), chosen
-
-
-def text_provider():
-    """Provider for reasoning, analysis, research, captions and scripts."""
-    return _for(providers.TEXT)[0]
-
-
-def vision_provider():
-    """Provider that can read a product photo."""
-    return _for(providers.VISION)[0]
-
-
-def provider_for_task(task_type: str):
-    """`services.ai.router` task type → client."""
-    return _for(providers.TASK_CAPABILITY.get(task_type, providers.TEXT))[0]
-
-
-def model_name_for(capability: str) -> str | None:
-    """Which model will actually run — recorded on every AIRequest row."""
-    chosen = providers.primary(capability)
-    return chosen.model_name if chosen else None
 
 
 def health(resolved: providers.Resolved) -> tuple[bool, str]:

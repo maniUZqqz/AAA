@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.stores.models import Store
+from services.ai.gateway import PolicyBlocked
 from services.ai.ollama import OllamaError
 
 from .agent import OPEN_ORDER_STATES, open_orders_payload, run_sales_agent
@@ -27,10 +28,11 @@ from .serializers import (
     OrderSerializer,
     SupportTicketSerializer,
 )
+from apps.stores import access
 
 
 def _owned_store(request, store_id) -> Store:
-    return get_object_or_404(Store.objects.filter(owner=request.user), pk=store_id)
+    return access.get_store(request.user, store_id, access.CONVERSATIONS)
 
 
 class ChatView(APIView):
@@ -80,6 +82,28 @@ class ChatView(APIView):
 
         try:
             result = run_sales_agent(conversation, text)
+        except PolicyBlocked as exc:
+            # Not an outage: the shop's own data policy forbids the only
+            # provider that could answer. Saying "AI unavailable" here would
+            # send the owner hunting a fault that does not exist.
+            notify(
+                store,
+                Notification.Type.AI_ERROR,
+                "سیاست داده‌ی فروشگاه جلوی پاسخ AI را گرفت",
+                body=f"گفتگو #{conversation.id}: {exc}",
+                link=f"/stores/{store.id}/settings",
+                context={"conversation_id": conversation.id, "policy": True},
+            )
+            return Response(
+                {
+                    "error": {
+                        "code": "ai_policy_blocked",
+                        "message": str(exc),
+                    },
+                    "conversation_id": conversation.id,
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
         except OllamaError as exc:
             # the one moment the AI can do nothing — tell the owner immediately
             notify(
@@ -200,7 +224,7 @@ class MessageListView(generics.ListAPIView):
 
     def get_queryset(self):
         conversation = get_object_or_404(
-            Conversation.objects.filter(store__owner=self.request.user), pk=self.kwargs["pk"]
+            Conversation.objects.filter(store__in=access.stores_for(self.request.user)), pk=self.kwargs["pk"]
         )
         return conversation.messages.all()[:500]
 
@@ -210,7 +234,7 @@ class HandoffView(APIView):
 
     def post(self, request, pk):
         conversation = get_object_or_404(
-            Conversation.objects.filter(store__owner=request.user), pk=pk
+            Conversation.objects.filter(store__in=access.stores_for(request.user)), pk=pk
         )
         new_state = str(request.data.get("state", "") or "").upper()
         allowed = {
@@ -242,7 +266,7 @@ class OrderListView(generics.ListAPIView):
 
 def _owned_order(request, pk) -> Order:
     return get_object_or_404(
-        Order.objects.filter(store__owner=request.user).select_related("store"), pk=pk
+        Order.objects.filter(store__in=access.stores_for(request.user)).select_related("store"), pk=pk
     )
 
 
@@ -392,7 +416,7 @@ class TicketResolveView(APIView):
     """POST /api/v1/tickets/{id}/resolve/ {"note"?: "..."}"""
 
     def post(self, request, pk):
-        ticket = get_object_or_404(SupportTicket.objects.filter(store__owner=request.user), pk=pk)
+        ticket = get_object_or_404(SupportTicket.objects.filter(store__in=access.stores_for(request.user)), pk=pk)
         ticket.status = SupportTicket.Status.RESOLVED
         ticket.resolution_note = str(request.data.get("note", "") or "")
         ticket.resolved_at = timezone.now()
@@ -406,7 +430,7 @@ class NotificationListView(generics.ListAPIView):
     serializer_class = NotificationSerializer
 
     def get_queryset(self):
-        qs = Notification.objects.filter(store__owner=self.request.user).select_related("store")
+        qs = Notification.objects.filter(store__in=access.stores_for(self.request.user)).select_related("store")
         store_id = self.request.query_params.get("store")
         if store_id:
             qs = qs.filter(store_id=store_id)
@@ -417,7 +441,7 @@ class NotificationListView(generics.ListAPIView):
     def list(self, request, *args, **kwargs):
         response = super().list(request, *args, **kwargs)
         response.data["unread_count"] = self.get_queryset().model.objects.filter(
-            store__owner=request.user, is_read=False
+            store__in=access.stores_for(request.user), is_read=False
         ).count()
         return response
 
@@ -426,7 +450,7 @@ class NotificationReadView(APIView):
     """POST /api/v1/notifications/{id}/read/ — or /notifications/read-all/."""
 
     def post(self, request, pk=None):
-        qs = Notification.objects.filter(store__owner=request.user)
+        qs = Notification.objects.filter(store__in=access.stores_for(request.user))
         if pk is not None:
             get_object_or_404(qs, pk=pk)
             qs = qs.filter(pk=pk)

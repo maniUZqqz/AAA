@@ -5,6 +5,7 @@ from rest_framework.response import Response
 
 from .models import Store
 from .serializers import StoreProfileSerializer, StoreSerializer
+from . import access
 
 
 class StoreViewSet(viewsets.ModelViewSet):
@@ -14,7 +15,7 @@ class StoreViewSet(viewsets.ModelViewSet):
     parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_queryset(self):
-        return Store.objects.filter(owner=self.request.user)
+        return access.stores_for(self.request.user)
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)

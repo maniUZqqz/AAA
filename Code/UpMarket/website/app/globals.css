@@ -428,3 +428,59 @@ details.qa p { color: var(--text-2); margin-top: 12px; line-height: 2; }
 .gap-lg { gap: 32px; }
 .center-row { justify-content: center; }
 .mb-sm { margin-bottom: 8px; }
+
+/* ============================================================
+   فرم‌ها — تماس، و بعداً ثبت‌نام
+   ============================================================ */
+
+.stack-sm > span {
+  font-size: .92rem;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  transition: border-color .15s, box-shadow .15s;
+}
+
+textarea { resize: vertical; min-height: 120px; line-height: 1.9; }
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  border-color: var(--color-brand-500);
+  box-shadow: 0 0 0 3px rgb(99 102 241 / .18);
+}
+
+input::placeholder,
+textarea::placeholder { color: var(--text-3); }
+
+/* The browser's own invalid styling fires while you are still typing. Wait
+   until the field has been left, so nobody is told they are wrong mid-word. */
+input:not(:placeholder-shown):user-invalid,
+textarea:not(:placeholder-shown):user-invalid {
+  border-color: #dc2626;
+}
+
+button[disabled] { opacity: .6; cursor: not-allowed; }
+
+/* select needs its arrow back once the border is customised */
+select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-3) 50%),
+                    linear-gradient(135deg, var(--text-3) 50%, transparent 50%);
+  background-position: left 18px center, left 13px center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-left: 36px;
+}

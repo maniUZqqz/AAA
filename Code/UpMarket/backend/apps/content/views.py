@@ -26,11 +26,12 @@ from .tasks import (
     generate_video_task,
     generate_voice_task,
 )
+from apps.stores import access
 
 
 def _owned_product(request, pk) -> Product:
     return get_object_or_404(
-        Product.objects.filter(store__owner=request.user).select_related("store"), pk=pk
+        Product.objects.filter(store__in=access.stores_for(request.user)).select_related("store"), pk=pk
     )
 
 
@@ -252,7 +253,7 @@ class VoiceGenerateView(APIView):
 
     def post(self, request, pk):
         script = get_object_or_404(
-            VideoScript.objects.filter(store__owner=request.user), pk=pk
+            VideoScript.objects.filter(store__in=access.stores_for(request.user)), pk=pk
         )
         if not script.final_video:
             return Response(
@@ -286,7 +287,7 @@ class VideoGenerateView(APIView):
 
     def post(self, request, pk):
         script = get_object_or_404(
-            VideoScript.objects.filter(store__owner=request.user).select_related("product", "store"),
+            VideoScript.objects.filter(store__in=access.stores_for(request.user)).select_related("product", "store"),
             pk=pk,
         )
         if not script.product.images.exists():

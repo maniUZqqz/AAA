@@ -63,6 +63,13 @@ if not DEBUG and SECRET_KEY == "dev-insecure-key-change-on-main-system":
         "(JWTs are signed with it)."
     )
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "*")
+if not DEBUG and ALLOWED_HOSTS == ["*"]:
+    from django.core.exceptions import ImproperlyConfigured
+
+    raise ImproperlyConfigured(
+        "DJANGO_ALLOWED_HOSTS نمی‌تواند در production برابر * باشد — "
+        "دامنه‌های واقعی را بنویسید."
+    )
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -87,6 +94,7 @@ INSTALLED_APPS = [
     "apps.campaigns",
     "apps.analytics",
     "apps.billing",
+    "apps.marketing",
 ]
 
 MIDDLEWARE = [
@@ -120,16 +128,71 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 
 # ---------------------------------------------------------------- database
-# Official database: Django's built-in SQLite (decision D2, revised) — zero
-# setup on both the dev machine and the main system. If the project ever
-# needs PostgreSQL (many concurrent users), only this block changes; the
-# ORM models/migrations stay engine-agnostic.
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": Path(os.getenv("SQLITE_PATH", BASE_DIR / "db.sqlite3")),
+# SQLite for development, PostgreSQL for production.
+#
+# SQLite takes a single writer at a time. That is fine for one developer and
+# fatal for the target architecture: hundreds of shops, Celery workers, and
+# long-running jobs all writing at once. The capacity model sells 283
+# concurrent customers, so the database has to survive them.
+#
+# Set DATABASE_URL and Postgres is used; leave it empty and SQLite is, with no
+# other change anywhere. Migrations stay engine-agnostic either way.
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+
+if DATABASE_URL:
+    from urllib.parse import unquote, urlparse
+
+    _db = urlparse(DATABASE_URL)
+    if _db.scheme not in ("postgres", "postgresql"):
+        from django.core.exceptions import ImproperlyConfigured
+
+        raise ImproperlyConfigured(
+            f"DATABASE_URL scheme «{_db.scheme}» پشتیبانی نمی‌شود — postgres:// لازم است."
+        )
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": (_db.path or "/upmarket").lstrip("/"),
+            "USER": unquote(_db.username or ""),
+            "PASSWORD": unquote(_db.password or ""),
+            "HOST": _db.hostname or "127.0.0.1",
+            "PORT": str(_db.port or 5432),
+            # Reuse connections instead of opening one per request. Under
+            # Celery + web workers this is the difference between a handful of
+            # connections and hundreds.
+            "CONN_MAX_AGE": int(os.getenv("DB_CONN_MAX_AGE", "60")),
+            "CONN_HEALTH_CHECKS": True,
+            "OPTIONS": {
+                "connect_timeout": int(os.getenv("DB_CONNECT_TIMEOUT", "10")),
+            },
+        }
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": Path(os.getenv("SQLITE_PATH", BASE_DIR / "db.sqlite3")),
+            "OPTIONS": {
+                # WAL lets readers work while one writer holds the lock, and a
+                # busy timeout turns "database is locked" into a short wait
+                # rather than an instant error. Both only matter in dev, but
+                # they make dev behave a little more like production.
+                "init_command": "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;",
+            },
+        }
+    }
+
+# Refuse to run production on SQLite. Getting this wrong is silent until the
+# first concurrent write, and by then there are real customers on it.
+if not DEBUG and not DATABASE_URL:
+    import warnings
+
+    warnings.warn(
+        "DJANGO_DEBUG=false ولی DATABASE_URL تنظیم نشده — production روی SQLite "
+        "اجرا می‌شود. برای PostgreSQL مقدار DATABASE_URL را بگذارید.",
+        RuntimeWarning,
+        stacklevel=2,
+    )
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -212,6 +275,11 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "anon": os.getenv("THROTTLE_ANON", "30/minute"),
         "user": os.getenv("THROTTLE_USER", "240/minute"),
+        # The public contact form is the only anonymous write endpoint we have.
+        # A person sends one message; anything near this ceiling is a script.
+        "lead": os.getenv("THROTTLE_LEAD", "5/hour"),
+        # Analytics is batched, so a real visit is a handful of requests.
+        "event": os.getenv("THROTTLE_EVENT", "120/hour"),
     },
 }
 
@@ -249,9 +317,29 @@ else:
     # dev convenience only; credentials stay off with a wildcard origin
     CORS_ALLOW_ALL_ORIGINS = DEBUG
 
+# Behind a TLS-terminating proxy Django sees plain HTTP, so it rejects admin
+# POSTs whose Origin says https unless the origin is listed here. Symptom is a
+# 403 on login that looks like a wrong password.
+CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
+
+# Trust the proxy's protocol header so `request.is_secure()` is right; without
+# it secure cookies are never set and an SSL redirect loops.
+if env_bool("USE_PROXY_SSL_HEADER", not DEBUG):
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 # ---------------------------------------------------------------- Celery / Redis
-CELERY_BROKER_URL = prefer_ipv4_localhost(os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0"))
-CELERY_RESULT_BACKEND = CELERY_BROKER_URL
+# CELERY_BROKER_URL is what compose sets and what Celery's own docs use;
+# REDIS_URL is kept because start.bat and the dev machine already use it.
+# Reading only one of the two meant the deployed workers silently fell back to
+# localhost and found no broker.
+CELERY_BROKER_URL = prefer_ipv4_localhost(
+    os.getenv("CELERY_BROKER_URL")
+    or os.getenv("REDIS_URL")
+    or "redis://127.0.0.1:6379/0"
+)
+CELERY_RESULT_BACKEND = prefer_ipv4_localhost(
+    os.getenv("CELERY_RESULT_BACKEND") or CELERY_BROKER_URL
+)
 
 
 def _redis_is_up(url: str, timeout: float = 0.6) -> bool:
@@ -296,8 +384,46 @@ CELERY_TASK_ROUTES = {
     "apps.campaigns.tasks.*": {"queue": "ai"},
 }
 
+# ---------------------------------------------------------------- payments
+# Gateway credentials. With none of these set the product still runs: the only
+# offered method is a bank transfer a human confirms, which is what the
+# business does today.
+UPMARKET_PAYMENT = {
+    "ZARINPAL_MERCHANT_ID": os.getenv("ZARINPAL_MERCHANT_ID", ""),
+    "ZARINPAL_SANDBOX": env_bool("ZARINPAL_SANDBOX", False),
+    "MANUAL_ACCOUNT_INFO": os.getenv("MANUAL_ACCOUNT_INFO", ""),
+    "DEFAULT_PROVIDER": os.getenv("PAYMENT_DEFAULT_PROVIDER", ""),
+    "PERIOD_DAYS": int(os.getenv("BILLING_PERIOD_DAYS", "30")),
+    # Days a lapsed subscription keeps working. Cutting someone off the moment
+    # a renewal fails loses customers whose card simply expired.
+    "GRACE_DAYS": int(os.getenv("BILLING_GRACE_DAYS", "3")),
+    # Where the gateway sends the browser back to.
+    "CALLBACK_BASE": os.getenv("PAYMENT_CALLBACK_BASE", "http://127.0.0.1:8000"),
+    "PANEL_URL": os.getenv("PANEL_URL", "http://127.0.0.1:5173"),
+}
+
 # ---------------------------------------------------------------- UpMarket AI stack
 UPMARKET_AI = {
+    # --- API mode ------------------------------------------------------
+    # Setting AI_API_BASE_URL flips text+vision from the local Ollama box to
+    # any OpenAI-compatible API (Metis, AvalAI, Liara, OpenAI itself). This is
+    # the .env shortcut for what ModelProvider rows already do in the admin —
+    # so a machine with no GPU can run the whole product. Admin rows still win
+    # when they exist; this only replaces the built-in default.
+    "AI_API_BASE_URL": os.getenv("AI_API_BASE_URL", "").rstrip("/"),
+    "AI_API_KEY": os.getenv("AI_API_KEY", ""),
+    "AI_API_MODEL_TEXT": os.getenv("AI_API_MODEL_TEXT", "gpt-4o-mini"),
+    "AI_API_MODEL_VISION": os.getenv("AI_API_MODEL_VISION", "gpt-4o-mini"),
+    "AI_API_TIMEOUT": int(os.getenv("AI_API_TIMEOUT", "180")),
+    # Data policy for stores that have not chosen one (apps.ai.StoreAIPolicy).
+    # HYBRID = any active provider may answer, which is how every install
+    # behaved before the policy layer existed. An operator who promises local
+    # processing to every customer sets LOCAL_ONLY here and means it.
+    "AI_DEFAULT_POLICY": os.getenv("AI_DEFAULT_POLICY", "HYBRID").upper(),
+    # Quality guarantee: how many goes at one output before it stops being
+    # charged for (apps.billing.credits). One miss is luck, two a coincidence,
+    # three means the model cannot do this job today.
+    "QUALITY_MAX_ATTEMPTS": int(os.getenv("QUALITY_MAX_ATTEMPTS", "3")),
     "OLLAMA_BASE_URL": prefer_ipv4_localhost(
         os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
     ),

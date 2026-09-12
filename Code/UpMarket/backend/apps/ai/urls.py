@@ -1,12 +1,18 @@
 from django.urls import path
 
 from .views import EmbeddingsView, MarketAnalysisView, ProductAnalyzeView, ProductIntelligenceView
+from .views_policy import StoreAIPolicyView
 from .views_providers import AIProviderHealthView, AIStatusView
 
 
 
 urlpatterns = [
     path("ai/status/", AIStatusView.as_view(), name="ai-status"),
+    path(
+        "stores/<int:store_id>/ai-policy/",
+        StoreAIPolicyView.as_view(),
+        name="store-ai-policy",
+    ),
     path("ai/providers/health/", AIProviderHealthView.as_view(), name="ai-provider-health"),
     path("products/<int:pk>/analyze/", ProductAnalyzeView.as_view(), name="product-analyze"),
     path("stores/<int:store_id>/embeddings/", EmbeddingsView.as_view(), name="store-embeddings"),

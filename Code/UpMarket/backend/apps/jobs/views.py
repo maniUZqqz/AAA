@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 from . import staleness
 from .models import Job
 from .serializers import JobSerializer
+from apps.stores import access
 
 
 class JobDetailView(generics.RetrieveAPIView):
@@ -13,7 +14,7 @@ class JobDetailView(generics.RetrieveAPIView):
     serializer_class = JobSerializer
 
     def get_queryset(self):
-        qs = Job.objects.filter(store__owner=self.request.user)
+        qs = Job.objects.filter(store__in=access.stores_for(self.request.user))
         staleness.reap(qs)
         return qs
 
@@ -22,7 +23,7 @@ class JobListView(generics.ListAPIView):
     serializer_class = JobSerializer
 
     def get_queryset(self):
-        qs = Job.objects.filter(store__owner=self.request.user)
+        qs = Job.objects.filter(store__in=access.stores_for(self.request.user))
         # every listing reaps first: a panel that re-attaches on mount must
         # never latch onto a job that can no longer finish (beter.md v2 #1/#2)
         staleness.reap(qs)
@@ -57,7 +58,7 @@ class JobCancelView(APIView):
     """
 
     def post(self, request, pk):
-        job = Job.objects.filter(store__owner=request.user, pk=pk).first()
+        job = Job.objects.filter(store__in=access.stores_for(request.user), pk=pk).first()
         if job is None:
             return Response(
                 {"error": {"code": "not_found", "message": "این Job وجود ندارد."}},

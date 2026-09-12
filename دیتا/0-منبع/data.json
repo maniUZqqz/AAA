@@ -1000,14 +1000,14 @@
     },
     "stats": [
       {
-        "value": "۱۰",
+        "value": "۱۱",
         "label": "دامنه‌ی مستقل بک‌اند",
-        "detail": "accounts · stores · products · customers · ai · content · campaigns · jobs · analytics · billing"
+        "detail": "accounts · stores · products · customers · ai · content · campaigns · jobs · analytics · billing · marketing"
       },
       {
-        "value": "۲۱۴",
+        "value": "۲۲۴",
         "label": "تست خودکار سبز",
-        "detail": "واقعاً اجرا و سبز شد (۴ اسکیپ: تست‌های FFmpeg، چون روی سیستم توسعه نصب نیست). عدد قبلی ۲۱۵ بود چون شمارش متنی، اکشن ادمین apps/ai/admin_providers.py:test_connection را هم تست حساب می‌کرد."
+        "detail": "واقعاً اجرا و سبز شد (۴ اسکیپ: تست‌های FFmpeg، چون روی سیستم توسعه نصب نیست). ۱۰ تست جدید برای اندپوینت عمومی لید."
       },
       {
         "value": "۸+۵",
@@ -1207,8 +1207,9 @@
       },
       {
         "icon": "🔒",
-        "title": "داده‌ی شما پیش ما می‌ماند",
-        "desc": "پردازش روی سرور خودمان انجام می‌شود، نه سرویس خارجی."
+        "title": "پردازش روی سرور خودمان",
+        "desc": "تولید تصویر و ویدیو روی سخت‌افزار خودمان است. دو مورد بیرون می‌رود و شفاف می‌گوییم: صداگذاری، و جستجوی قیمت رقبا.",
+        "_note": "متن قبلی «داده‌ی شما پیش ما می‌ماند — پردازش روی سرور خودمان، نه سرویس خارجی» بود و با کد نمی‌خواند: edge-tts متن نریشن را به مایکروسافت می‌فرستد و تحقیق رقبا دیجی‌کالا/ترب را می‌خواند. ادعای «هیچ چیز بیرون نمی‌رود» قولی بود که محصول نمی‌توانست نگه دارد."
       },
       {
         "icon": "👤",
@@ -1300,6 +1301,38 @@
     {
       "claim": "هر قابلیت (متن/بینایی/تصویر/ویدیو) از ادمین بین لوکال و API سوییچ می‌شود",
       "where": "apps/ai/models.py ModelProvider · services/ai/providers.py"
+    },
+    {
+      "claim": "هر فروشگاه خودش تعیین می‌کند داده‌اش از سرور خارج شود یا نه (فقط لوکال / فقط تأییدشده / ترکیبی)",
+      "where": "apps/ai/models.py StoreAIPolicy · services/ai/gateway.py"
+    },
+    {
+      "claim": "پیام خصوصی مشتری پیش‌فرض به هیچ سرویس بیرونی نمی‌رود مگر مالک فروشگاه صریحاً اجازه بدهد",
+      "where": "services/ai/gateway.py check() · apps/customers/agent.py"
+    },
+    {
+      "claim": "صداگذاری بیرونی است (مایکروسافت) و فروشگاهِ «فقط لوکال» اصلاً صدا تولید نمی‌کند",
+      "where": "services/audio/tts.py _enforce_policy"
+    },
+    {
+      "claim": "هر فروشگاه می‌تواند همکار اضافه کند با شش نقش مستقل (مالک/مدیر/بازاریابی/محتوا/پشتیبانی/بازدیدکننده)",
+      "where": "apps/stores/access.py · apps/stores/models.py Membership"
+    },
+    {
+      "claim": "اعتبار فقط برای خروجی قابل‌استفاده مصرف می‌شود — رد کردن خروجی، اعتبار را برمی‌گرداند",
+      "where": "apps/billing/credits.py refund"
+    },
+    {
+      "claim": "تضمین کیفیت: بعد از سه تلاش ناموفق، تولید رایگان می‌شود و اعتبار کل زنجیره برمی‌گردد",
+      "where": "apps/billing/credits.py reserve_retry"
+    },
+    {
+      "claim": "قوانین «هرگز این را نگو» در خودِ متن جواب مدل بررسی می‌شوند، نه فقط در پرامپت",
+      "where": "apps/stores/agent_settings.py violations · apps/customers/agent.py"
+    },
+    {
+      "claim": "چک‌لیست شروع کار از ردیف‌های واقعی دیتابیس خوانده می‌شود، نه از کلیک کاربر",
+      "where": "apps/stores/onboarding.py"
     },
     {
       "claim": "سهمیه پیش از کار رزرو و پس از موفقیت ثبت می‌شود",

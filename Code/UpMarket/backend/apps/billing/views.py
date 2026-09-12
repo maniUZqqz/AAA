@@ -7,9 +7,10 @@ from rest_framework.views import APIView
 
 from apps.stores.models import Store
 
-from . import services
+from . import credits, services
 from .models import Plan, Subscription, Usage
 from .serializers import PlanSerializer, SubscriptionSerializer, UsageSerializer
+from apps.stores import access
 
 
 class PlanListView(APIView):
@@ -23,7 +24,7 @@ class PlanListView(APIView):
 
 
 def _owned_store(request, pk) -> Store:
-    return get_object_or_404(Store, pk=pk, owner=request.user)
+    return access.get_store(request.user, pk, access.BILLING)
 
 
 class StoreUsageView(APIView):
@@ -78,3 +79,37 @@ class StoreUsageHistoryView(APIView):
         store = _owned_store(request, pk)
         rows = Usage.objects.filter(store=store).select_related("job")[:100]
         return Response(UsageSerializer(rows, many=True).data)
+
+
+class UsageQualityView(APIView):
+    """"This output is not good" — the store's half of the quality guarantee.
+
+    POST returns the credit for one generation and reports where the chain now
+    stands against the guarantee, so the panel can say "one attempt left" or
+    "the next one is free" instead of leaving the owner to count.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk, usage_id):
+        store = _owned_store(request, pk)
+        row = get_object_or_404(Usage, pk=usage_id, store=store)
+
+        try:
+            refunded = credits.refund(
+                row,
+                reason=str(request.data.get("reason", ""))[:200],
+                source=credits.CUSTOMER,
+                actor=request.user,
+            )
+        except credits.NotRefundable as exc:
+            return Response(
+                {"error": {"code": "not_refundable", "message": str(exc)}},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        return Response({
+            "usage": UsageSerializer(refunded).data,
+            "guarantee": credits.guarantee_status(refunded),
+            "snapshot": services.snapshot(store),
+        })

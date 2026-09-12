@@ -31,8 +31,10 @@ class SubscriptionSerializer(serializers.ModelSerializer):
 
 class UsageSerializer(serializers.ModelSerializer):
     metric_label = serializers.CharField(source="get_metric_display", read_only=True)
+    state_label = serializers.CharField(source="get_state_display", read_only=True)
 
     class Meta:
         model = Usage
-        fields = ["id", "metric", "metric_label", "quantity", "state",
-                  "external", "detail", "created_at"]
+        fields = ["id", "metric", "metric_label", "quantity", "state", "state_label",
+                  "external", "detail", "attempt", "quality_reason", "quality_source",
+                  "created_at"]

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 
-import { api } from "../../api/client";
+import { api, errorMessage } from "../../api/client";
 import {
   Alert,
   Badge,
@@ -104,18 +104,67 @@ export default function PlanPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  async function choose(slug: string) {
+  // The gateway sends the customer back here rather than to a dead-end page,
+  // so the result has to be readable the moment they land.
+  const [params, setParams] = useSearchParams();
+  const payment = params.get("payment");
+  const invoice = params.get("invoice");
+
+  useEffect(() => {
+    if (!payment) return;
+    if (payment === "ok") {
+      setMessage(
+        invoice
+          ? `پرداخت انجام شد. شماره فاکتور: ${invoice}`
+          : "پرداخت انجام شد و اشتراک فعال است.",
+      );
+    } else if (payment === "failed") {
+      setMessage("پرداخت تأیید نشد. اگر مبلغ کم شده، طی ۷۲ ساعت برمی‌گردد.");
+    } else {
+      setMessage("پرداخت ناتمام ماند. دوباره تلاش کنید.");
+    }
+    // Clear the flag so a refresh does not replay the banner.
+    params.delete("payment");
+    params.delete("invoice");
+    setParams(params, { replace: true });
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payment]);
+
+  async function choose(slug: string, price: number) {
     setSaving(slug);
     setMessage("");
     try {
-      await api.post(`/stores/${id}/subscription/`, { plan: slug });
+      // A free plan needs no gateway; anything priced goes through payment.
+      if (price <= 0) {
+        await api.post(`/stores/${id}/subscription/`, { plan: slug });
+        setMessage("پلن رایگان فعال شد.");
+        await load();
+        return;
+      }
+
+      const { data } = await api.post(`/stores/${id}/payments/`, { plan: slug });
+
+      if (data.redirect_url) {
+        // Leave the panel for the gateway. Coming back lands here again with
+        // ?payment=ok|failed, which the banner reads.
+        window.location.href = data.redirect_url;
+        return;
+      }
+
+      // No redirect means bank transfer: show where to send the money.
       setMessage(
-        "پلن ثبت شد. تا تأیید پرداخت، سهمیه‌ی پلن قبلی برقرار است — " +
-          "برای فعال‌سازی با پشتیبانی تماس بگیرید.",
+        [
+          `فاکتور ${data.invoice_number} به مبلغ ${toman(data.amount_toman)} تومان ثبت شد.`,
+          data.instructions,
+          "پس از واریز، رسید را بفرستید تا تأیید شود.",
+        ]
+          .filter(Boolean)
+          .join("\n"),
       );
       await load();
-    } catch {
-      setMessage("تغییر پلن انجام نشد. دوباره تلاش کنید.");
+    } catch (err) {
+      setMessage(errorMessage(err));
     } finally {
       setSaving("");
     }
@@ -257,10 +306,16 @@ export default function PlanPage() {
               <Button
                 variant={current ? "secondary" : "primary"}
                 disabled={current || saving === plan.slug}
-                onClick={() => choose(plan.slug)}
+                onClick={() => choose(plan.slug, plan.price_toman)}
                 className="mt-4 w-full"
               >
-                {current ? "پلن فعلی شما" : saving === plan.slug ? "…" : "انتخاب این پلن"}
+                {current
+                  ? "پلن فعلی شما"
+                  : saving === plan.slug
+                    ? "…"
+                    : plan.price_toman > 0
+                      ? "پرداخت و فعال‌سازی"
+                      : "انتخاب این پلن"}
               </Button>
             </Card>
           );

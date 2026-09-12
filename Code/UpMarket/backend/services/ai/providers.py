@@ -51,10 +51,31 @@ def _conf() -> dict:
     return settings.UPMARKET_AI
 
 
+def api_mode() -> bool:
+    """True when .env points text/vision at an OpenAI-compatible API.
+
+    Lets a machine with no GPU run the whole product — start.bat reads the
+    same flag to decide whether Ollama needs to be launched at all.
+    """
+    return bool(_conf().get("AI_API_BASE_URL"))
+
+
 def _default_for(capability: str) -> Resolved | None:
     """The provider implied by .env when the database has no rows."""
     conf = _conf()
     if capability in (TEXT, VISION):
+        if api_mode():
+            model_key = "AI_API_MODEL_VISION" if capability == VISION else "AI_API_MODEL_TEXT"
+            return Resolved(
+                capability=capability,
+                kind="OPENAI",
+                name="API سازگار با OpenAI (پیش‌فرض .env)",
+                base_url=conf["AI_API_BASE_URL"],
+                api_key=conf["AI_API_KEY"],
+                model_name=conf[model_key],
+                timeout_s=int(conf.get("AI_API_TIMEOUT", 180)),
+                is_local=False,
+            )
         key = "MODEL_VISION" if capability == VISION else "MODEL_REASONING"
         return Resolved(
             capability=capability,

@@ -13,6 +13,7 @@ from services.ai import embeddings as embedding_service
 from .models import MarketResearch, ProductEmbedding, ProductIntelligence
 from .serializers import MarketResearchSerializer, ProductIntelligenceSerializer
 from .tasks import analyze_market_task, analyze_product_task, build_embeddings_task
+from apps.stores import access
 
 
 class ProductAnalyzeView(APIView):
@@ -20,7 +21,7 @@ class ProductAnalyzeView(APIView):
 
     def post(self, request, pk):
         product = get_object_or_404(
-            Product.objects.filter(store__owner=request.user).select_related("store"), pk=pk
+            Product.objects.filter(store__in=access.stores_for(request.user)).select_related("store"), pk=pk
         )
         job = Job.objects.create(
             store=product.store,
@@ -45,7 +46,7 @@ class EmbeddingsView(APIView):
     """
 
     def get(self, request, store_id):
-        store = get_object_or_404(Store.objects.filter(owner=request.user), pk=store_id)
+        store = access.get_store(request.user, store_id, access.CONTENT)
         total = store.products.filter(is_available=True).count()
         embedded = ProductEmbedding.objects.filter(
             product__store=store, product__is_available=True
@@ -60,7 +61,7 @@ class EmbeddingsView(APIView):
         )
 
     def post(self, request, store_id):
-        store = get_object_or_404(Store.objects.filter(owner=request.user), pk=store_id)
+        store = access.get_store(request.user, store_id, access.CONTENT)
         if not embedding_service.is_enabled():
             return Response(
                 {
@@ -93,7 +94,7 @@ class ProductIntelligenceView(APIView):
     """
 
     def get(self, request, pk):
-        product = get_object_or_404(Product.objects.filter(store__owner=request.user), pk=pk)
+        product = get_object_or_404(Product.objects.filter(store__in=access.stores_for(request.user)), pk=pk)
         intelligence = ProductIntelligence.objects.filter(product=product).first()
         if intelligence is None:
             return Response(None)
@@ -106,7 +107,7 @@ class MarketAnalysisView(APIView):
     def get(self, request, pk):
         # 200 + null when nothing has been researched yet — same reason as
         # ProductIntelligenceView: a normal empty state must not log as an error
-        product = get_object_or_404(Product.objects.filter(store__owner=request.user), pk=pk)
+        product = get_object_or_404(Product.objects.filter(store__in=access.stores_for(request.user)), pk=pk)
         research = MarketResearch.objects.filter(product=product).first()
         if research is None:
             return Response(None)
@@ -114,7 +115,7 @@ class MarketAnalysisView(APIView):
 
     def post(self, request, pk):
         product = get_object_or_404(
-            Product.objects.filter(store__owner=request.user).select_related("store"), pk=pk
+            Product.objects.filter(store__in=access.stores_for(request.user)).select_related("store"), pk=pk
         )
         research_inputs = str(request.data.get("research_inputs", "") or "")
         job = Job.objects.create(

@@ -5,7 +5,8 @@
  * expanded under the link, a breadcrumb trail. Each builder returns a plain
  * object; the caller drops it into a <script type="application/ld+json">.
  */
-import { site } from "./content";
+import { siteFor } from "./content";
+import { DEFAULT_LOCALE, LOCALE_META, localePath, type Locale } from "./i18n";
 
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://upmarket.ir";
 
@@ -13,42 +14,48 @@ export function abs(path = ""): string {
   return `${SITE_URL}${path}`;
 }
 
-export function organization() {
+export function organization(locale: Locale = DEFAULT_LOCALE) {
+  const site = siteFor(locale);
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
-    name: site.name,
+    name: siteFor(DEFAULT_LOCALE).name,
     alternateName: site.nameEn,
-    url: SITE_URL,
+    url: abs(localePath(locale, "/")),
     logo: abs("/icon.png"),
     email: site.email,
     sameAs: [site.instagram],
-    description: site.oneLiner,
-    areaServed: { "@type": "Country", name: "ایران" },
+    description: siteFor(DEFAULT_LOCALE).oneLiner,
+    areaServed: { "@type": "Country", name: locale === "fa" ? "ایران" : "Iran" },
   };
 }
 
-export function website() {
+export function website(locale: Locale = DEFAULT_LOCALE) {
+  const site = siteFor(locale);
   return {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    name: site.name,
-    url: SITE_URL,
-    inLanguage: "fa-IR",
-    publisher: { "@type": "Organization", name: site.name },
+    name: siteFor(DEFAULT_LOCALE).name,
+    url: abs(localePath(locale, "/")),
+    inLanguage: LOCALE_META[locale].htmlLang,
+    publisher: { "@type": "Organization", name: siteFor(DEFAULT_LOCALE).name },
   };
 }
 
 /** Breadcrumbs help Google show the section instead of a bare URL. */
-export function breadcrumbs(trail: { name: string; path: string }[]) {
+export function breadcrumbs(
+  trail: { name: string; path: string }[],
+  locale: Locale = DEFAULT_LOCALE,
+) {
+  const home = locale === "fa" ? "خانه" : "Home";
   return {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
-    itemListElement: [{ name: "خانه", path: "/" }, ...trail].map((item, i) => ({
+    itemListElement: [{ name: home, path: "/" }, ...trail].map((item, i) => ({
       "@type": "ListItem",
       position: i + 1,
       name: item.name,
-      item: abs(item.path),
+      item: abs(localePath(locale, item.path)),
     })),
   };
 }
@@ -60,9 +67,9 @@ export function offers(
   return {
     "@context": "https://schema.org",
     "@type": "Product",
-    name: site.name,
-    description: site.oneLiner,
-    brand: { "@type": "Brand", name: site.name },
+    name: siteFor(DEFAULT_LOCALE).name,
+    description: siteFor(DEFAULT_LOCALE).oneLiner,
+    brand: { "@type": "Brand", name: siteFor(DEFAULT_LOCALE).name },
     offers: plans.map((p) => ({
       "@type": "Offer",
       name: p.name,
@@ -122,7 +129,7 @@ export function blogPosting(post: {
     author: { "@type": "Organization", name: post.author },
     publisher: {
       "@type": "Organization",
-      name: site.name,
+      name: siteFor(DEFAULT_LOCALE).name,
       logo: { "@type": "ImageObject", url: abs("/icon.png") },
     },
     mainEntityOfPage: { "@type": "WebPage", "@id": abs(`/blog/${post.slug}`) },

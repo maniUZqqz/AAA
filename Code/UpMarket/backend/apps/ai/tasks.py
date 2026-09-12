@@ -6,7 +6,7 @@ from celery import shared_task
 
 from apps.jobs.models import Job
 from apps.products.models import Product
-from services.ai.factory import text_provider, vision_provider
+from services.ai.gateway import text_provider, vision_provider
 from services.ai.prompts import market_analysis as market_prompts
 from services.ai.prompts import product_analysis as prompts
 from services.ai.router import TASK_REASONING, TASK_VISION, models_for
@@ -31,8 +31,8 @@ def analyze_product_task(self, job_id, product_id):
         )
         # vision and reasoning may now be served by different providers —
         # one local, one API — so each stage resolves its own
-        vision = vision_provider()
-        reasoner = text_provider()
+        vision = vision_provider(product.store)
+        reasoner = text_provider(product.store)
         images = list(product.images.all())
         job.total_steps = len(images) + 1
         job.mark_running("در حال تحلیل تصاویر محصول")
@@ -116,7 +116,7 @@ def analyze_market_task(self, job_id, product_id, research_inputs=""):
             Product.objects.select_related("store").prefetch_related("attributes").get(id=product_id)
         )
         intelligence = ProductIntelligence.objects.filter(product=product).first()
-        provider = text_provider()
+        provider = text_provider(product.store)
         job.total_steps = 2
         job.mark_running("در حال جستجوی خودکار رقبا در وب (دیجی‌کالا/ترب)")
 

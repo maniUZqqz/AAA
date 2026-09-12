@@ -5,6 +5,7 @@ from apps.content.serializers import CaptionSerializer, GeneratedImageSerializer
 from apps.products.models import Product
 
 from .models import Campaign, PublishJob
+from apps.stores import access
 
 
 class OwnedProductField(serializers.PrimaryKeyRelatedField):
@@ -12,7 +13,7 @@ class OwnedProductField(serializers.PrimaryKeyRelatedField):
         request = self.context.get("request")
         if request is None or not request.user.is_authenticated:
             return Product.objects.none()
-        return Product.objects.filter(store__owner=request.user)
+        return Product.objects.filter(store__in=access.stores_for(request.user))
 
 
 class _OwnedStoreScopedField(serializers.PrimaryKeyRelatedField):
@@ -24,7 +25,7 @@ class _OwnedStoreScopedField(serializers.PrimaryKeyRelatedField):
         request = self.context.get("request")
         if request is None or not request.user.is_authenticated:
             return self.model.objects.none()
-        return self.model.objects.filter(store__owner=request.user)
+        return self.model.objects.filter(store__in=access.stores_for(request.user))
 
 
 class OwnedGeneratedImageField(_OwnedStoreScopedField):

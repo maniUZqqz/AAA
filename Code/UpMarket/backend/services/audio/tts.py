@@ -3,6 +3,13 @@
 Default: edge-tts (Microsoft neural voices — real Persian support, verified with
 fa-IR-FaridNeural). gTTS remains as a fallback engine but does NOT support
 Persian, so it validates its language up front instead of failing mid-pipeline.
+
+**Both engines are external.** edge-tts sends the narration text to Microsoft,
+gTTS sends it to Google. There is currently no local Persian voice worth
+shipping, so a store on `Local Only` cannot generate narration at all — and
+`get_tts_provider(store=…)` says that plainly instead of synthesising the audio
+anyway. Pretending otherwise would have made the privacy page a lie about
+every video script we speak aloud.
 """
 from pathlib import Path
 
@@ -15,6 +22,10 @@ class TTSError(Exception):
 
 class BaseTTSProvider:
     name = "base"
+    # Where the narration text goes. Every engine must answer this, because the
+    # data policy layer asks it before the first byte is sent.
+    is_local = False
+    processor = "نامشخص"
 
     def synthesize(self, text: str, out_path) -> Path:  # pragma: no cover - interface
         raise NotImplementedError
@@ -35,6 +46,8 @@ class EdgeTTSProvider(BaseTTSProvider):
     """Microsoft Edge neural TTS (needs internet). Persian: fa-IR-FaridNeural / fa-IR-DilaraNeural."""
 
     name = "edge"
+    is_local = False
+    processor = "مایکروسافت (Edge TTS)"
 
     def __init__(self, voice=None):
         self.voice = voice or settings.UPMARKET_AI.get("TTS_VOICE", "fa-IR-FaridNeural")
@@ -62,6 +75,8 @@ class GTTSProvider(BaseTTSProvider):
     """Google Translate TTS. NOTE: does not support Persian ('fa') — validated up front."""
 
     name = "gtts"
+    is_local = False
+    processor = "گوگل (Google Translate TTS)"
 
     def __init__(self, language=None):
         self.language = language or settings.UPMARKET_AI.get("TTS_LANGUAGE", "fa")
@@ -90,13 +105,42 @@ class GTTSProvider(BaseTTSProvider):
         return out
 
 
-def get_tts_provider(language: str | None = None) -> BaseTTSProvider:
-    """TTS provider, optionally bound to a narration language ('fa'/'en')."""
+def get_tts_provider(language: str | None = None, store=None) -> BaseTTSProvider:
+    """TTS provider for a narration language ('fa'/'en'), honouring store policy.
+
+    `store` is optional only so the engine-level tests can build a provider
+    without a database; every real call site passes one. Without it the platform
+    default applies, exactly as it does everywhere else in the gateway.
+    """
     name = settings.UPMARKET_AI.get("TTS_PROVIDER", "edge").lower()
     if language is not None and language not in SUPPORTED_LANGUAGES:
         raise TTSError(f"Unsupported TTS language '{language}' — supported: {SUPPORTED_LANGUAGES}")
     if name == "edge":
-        return EdgeTTSProvider(voice=voice_for_language(language) if language else None)
-    if name == "gtts":
-        return GTTSProvider(language=language)
-    raise TTSError(f"Unknown TTS provider '{name}' — supported: edge, gtts")
+        provider = EdgeTTSProvider(voice=voice_for_language(language) if language else None)
+    elif name == "gtts":
+        provider = GTTSProvider(language=language)
+    else:
+        raise TTSError(f"Unknown TTS provider '{name}' — supported: edge, gtts")
+
+    _enforce_policy(provider, store)
+    return provider
+
+
+def _enforce_policy(provider: BaseTTSProvider, store) -> None:
+    """Refuse an external voice when the store said its data stays home.
+
+    Imported late: this module is also used by scripts that never load Django
+    models, and the policy check is the only thing here that needs them.
+    """
+    if provider.is_local:
+        return
+    from services.ai import gateway
+
+    policy = gateway.policy_for(store)
+    if policy.mode != gateway.LOCAL_ONLY:
+        return
+    raise TTSError(
+        f"سیاست این فروشگاه «فقط لوکال» است، ولی صداگذاری از {provider.processor} "
+        "استفاده می‌کند و متن نریشن به سرور بیرونی می‌رود. "
+        "فعلاً صدای فارسی لوکالی نداریم؛ یا سیاست را تغییر بده یا ویدیو را بدون نریشن بساز."
+    )

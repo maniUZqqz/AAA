@@ -18,7 +18,7 @@ from services import gpu
 from apps.billing import services as billing
 from apps.billing.models import Usage
 from services.ai import providers
-from services.ai.factory import text_provider
+from services.ai.gateway import text_provider
 from services.ai.prompts import captions as caption_prompts
 from services.ai.prompts import image_studio as image_prompts
 from services.ai.prompts import video_script as script_prompts
@@ -109,7 +109,7 @@ def generate_captions_task(
         reasoning_models = models_for(TASK_REASONING)
         gpu.before_ollama_work(reasoning_models[0])
 
-        provider = text_provider()
+        provider = text_provider(product.store)
         parsed, request_row = recorded_json_call(
             job=job,
             store=product.store,
@@ -179,7 +179,7 @@ def generate_video_script_task(self, job_id, product_id, total_duration=30, obje
         reasoning_models = models_for(TASK_REASONING)
         gpu.before_ollama_work(reasoning_models[0])
 
-        provider = text_provider()
+        provider = text_provider(product.store)
         parsed, request_row = recorded_json_call(
             job=job,
             store=product.store,
@@ -250,7 +250,7 @@ def generate_image_task(self, job_id, product_id, kind, style="", instructions="
         reasoning_models = models_for(TASK_REASONING)
         gpu.before_ollama_work(reasoning_models[0])
 
-        provider = text_provider()
+        provider = text_provider(product.store)
         parsed, request_row = recorded_json_call(
             job=job,
             store=product.store,
@@ -398,8 +398,11 @@ def generate_voice_task(self, job_id, script_id):
             s.index: s for s in script.segments.filter(status=VideoSegment.Status.DONE)
         }
 
-        # the voice must match the language the narration was written in
-        tts = get_tts_provider(language=script.narration_language or "fa")
+        # the voice must match the language the narration was written in, and
+        # the store must allow the narration text to reach an external voice
+        tts = get_tts_provider(
+            language=script.narration_language or "fa", store=script.store,
+        )
         out_dir = Path(settings.MEDIA_ROOT) / "generated" / "audio" / f"script_{script.id}"
         out_dir.mkdir(parents=True, exist_ok=True)
         job.total_steps = len(scenes) + 2

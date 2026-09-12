@@ -71,3 +71,16 @@ export function toman(value: number): string {
 export function fa(value: number | string): string {
   return String(value).replace(/[0-9]/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[Number(d)]);
 }
+
+/** Locale-aware digits. Persian numerals read as noise to an English reader,
+ *  and Latin digits look foreign in Persian copy — so the locale decides. */
+export function num(value: number | string, locale: "fa" | "en"): string {
+  return locale === "fa" ? fa(value) : String(value);
+}
+
+/** Locale-aware money. The unit word differs, so callers append their own. */
+export function money(value: number, locale: "fa" | "en"): string {
+  return locale === "fa"
+    ? value.toLocaleString("fa-IR").replace(/,/g, "٬")
+    : value.toLocaleString("en-US");
+}

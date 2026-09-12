@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 from django.test import TestCase
 
-from services.ai import factory, providers
+from services.ai import factory, gateway, providers
 from services.ai.ollama import OllamaProvider
 from services.ai.openai_compat import OpenAICompatProvider
 
@@ -72,12 +72,23 @@ class ResolutionTests(TestCase):
 
 
 class FactoryTests(TestCase):
+    """Which client class a row turns into. Routed through the gateway because
+    that is now the only way to get one — see apps/ai/tests_boundary.py."""
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        from apps.stores.models import Store
+
+        user = User.objects.create_user("factory-owner", password="x")
+        self.store = Store.objects.create(owner=user, name="فروشگاه سازنده")
+
     def test_ollama_row_builds_the_local_client(self):
         ModelProvider.objects.create(
             capability=ModelProvider.Capability.TEXT, kind=ModelProvider.Kind.OLLAMA,
             name="لوکال", model_name="qwq:32b",
         )
-        self.assertIsInstance(factory.text_provider(), OllamaProvider)
+        self.assertIsInstance(gateway.text_provider(self.store), OllamaProvider)
 
     def test_api_row_builds_the_http_client(self):
         ModelProvider.objects.create(
@@ -85,7 +96,7 @@ class FactoryTests(TestCase):
             name="ابری", base_url="https://api.example.com/v1",
             api_key="sk-x", model_name="gpt-4o-mini",
         )
-        client = factory.text_provider()
+        client = gateway.text_provider(self.store)
         self.assertIsInstance(client, OpenAICompatProvider)
         self.assertEqual(client.model, "gpt-4o-mini")
         self.assertEqual(client.api_key, "sk-x")
@@ -95,8 +106,8 @@ class FactoryTests(TestCase):
             capability=ModelProvider.Capability.TEXT, kind=ModelProvider.Kind.OPENAI,
             name="متن ابری", base_url="https://api.example.com/v1", model_name="gpt-4o-mini",
         )
-        self.assertIsInstance(factory.text_provider(), OpenAICompatProvider)
-        self.assertIsInstance(factory.vision_provider(), OllamaProvider)
+        self.assertIsInstance(gateway.text_provider(self.store), OpenAICompatProvider)
+        self.assertIsInstance(gateway.vision_provider(self.store), OllamaProvider)
 
 
 class ValidationTests(TestCase):
@@ -142,7 +153,9 @@ class OpenAICompatTests(TestCase):
     def test_generate_json_parses_a_fenced_block(self, mock_post):
         mock_post.return_value = self._reply('```json\n{"a": 1}\n```')
         client = OpenAICompatProvider("https://api.example.com/v1", "k", "m")
-        self.assertEqual(client.generate_json("hi"), {"a": 1})
+        parsed, raw = client.generate_json("m", "hi")
+        self.assertEqual(parsed, {"a": 1})
+        self.assertIn("{", raw)
 
     @patch("services.ai.openai_compat.requests.post")
     def test_bad_key_is_reported_not_retried(self, mock_post):
@@ -161,3 +174,51 @@ class OpenAICompatTests(TestCase):
         client = OpenAICompatProvider("", "k", "m")
         with self.assertRaises(Exception):
             client.generate("hi")
+
+
+class ProviderContractTests(TestCase):
+    """The local and remote providers must be interchangeable in fact, not only
+    in intent.
+
+    This exists because they were not. `_single_call` passes the model
+    positionally and unpacks `(parsed, raw)`; the API provider took a
+    keyword-only model and returned a bare dict, so switching TEXT to an API
+    raised a TypeError before any request left the machine. Every test at the
+    layer above mocks the provider, so nothing there noticed — only a run
+    against a real ModelProvider row did.
+    """
+
+    def test_generate_json_signatures_line_up(self):
+        import inspect
+
+        local = inspect.signature(OllamaProvider.generate_json).parameters
+        remote = inspect.signature(OpenAICompatProvider.generate_json).parameters
+
+        # the two positional arguments the audited call site relies on
+        self.assertEqual(list(local)[:3], ["self", "model", "prompt"])
+        self.assertEqual(list(remote)[:3], ["self", "model", "prompt"])
+
+        # every keyword the call site passes must exist on both
+        for keyword in ("system", "images", "options", "timeout"):
+            self.assertIn(keyword, local, f"OllamaProvider lost `{keyword}`")
+            self.assertIn(keyword, remote, f"OpenAICompatProvider lost `{keyword}`")
+
+    @patch("services.ai.openai_compat.requests.post")
+    def test_remote_provider_works_through_the_audited_call_site(self, mock_post):
+        """The exact call `apps.ai.services._single_call` makes."""
+
+        class R:
+            status_code = 200
+            text = ""
+
+            @staticmethod
+            def json():
+                return {"choices": [{"message": {"content": '{"ok": true}'}}]}
+
+        mock_post.return_value = R()
+        client = OpenAICompatProvider("https://api.example.com/v1", "k", "m")
+        parsed, raw = client.generate_json(
+            "m", "prompt", system=None, images=None, options=None
+        )
+        self.assertEqual(parsed, {"ok": True})
+        self.assertTrue(raw)

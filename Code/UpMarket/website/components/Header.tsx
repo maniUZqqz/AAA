@@ -4,13 +4,21 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
-import { nav, site } from "@/lib/content";
+import { siteFor } from "@/lib/content";
+import { dict } from "@/lib/dict";
+import { localePath, stripLocale, type Locale } from "@/lib/i18n";
 
+import LocaleToggle from "./LocaleToggle";
 import ThemeToggle from "./ThemeToggle";
 
-export default function Header() {
+export default function Header({ locale }: { locale: Locale }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
+  const site = siteFor(locale);
+  const t = dict(locale);
+  // Compare against the locale-free path so the active pill highlights on
+  // /en/pricing exactly as it does on /pricing.
+  const bare = stripLocale(path || "/");
 
   return (
     <header
@@ -26,7 +34,7 @@ export default function Header() {
         style={{ display: "flex", alignItems: "center", gap: 16, height: 64 }}
       >
         <Link
-          href="/"
+          href={localePath(locale, "/")}
           style={{ textDecoration: "none", fontWeight: 800, fontSize: "1.25rem" }}
           className="gradient-text"
         >
@@ -34,15 +42,15 @@ export default function Header() {
         </Link>
 
         <nav className="desktop-nav" style={{ display: "flex", gap: 4, marginInlineStart: 12 }}>
-          {nav.map((item) => (
+          {t.nav.map((item) => (
             <Link
               key={item.href}
-              href={item.href}
+              href={localePath(locale, item.href)}
               style={{
                 padding: "7px 12px", borderRadius: 999, textDecoration: "none",
                 fontSize: ".88rem", fontWeight: 500,
-                color: path === item.href ? "var(--color-brand-600)" : "var(--text-2)",
-                background: path === item.href ? "var(--eyebrow-bg)" : "transparent",
+                color: bare === item.href ? "var(--color-brand-600)" : "var(--text-2)",
+                background: bare === item.href ? "var(--eyebrow-bg)" : "transparent",
               }}
             >
               {item.label}
@@ -51,16 +59,19 @@ export default function Header() {
         </nav>
 
         <div style={{ marginInlineStart: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+          <LocaleToggle locale={locale} />
           <ThemeToggle />
-          <a href={site.panelUrl} className="btn btn-ghost desktop-only">ورود</a>
+          <a href={site.panelUrl} className="btn btn-ghost desktop-only">
+            {locale === "fa" ? "ورود" : "Log in"}
+          </a>
           <a href={`${site.panelUrl}/register`} className="btn btn-primary">
-            شروع رایگان
+            {t.cta.startFree}
           </a>
           <button
             className="mobile-only btn btn-ghost"
             style={{ padding: "8px 12px" }}
             onClick={() => setOpen((v) => !v)}
-            aria-label="منو"
+            aria-label={locale === "fa" ? "منو" : "Menu"}
             aria-expanded={open}
           >
             ☰
@@ -71,10 +82,10 @@ export default function Header() {
       {open && (
         <div className="wrap mobile-only" style={{ paddingBottom: 16 }}>
           <div style={{ display: "grid", gap: 4 }}>
-            {nav.map((item) => (
+            {t.nav.map((item) => (
               <Link
                 key={item.href}
-                href={item.href}
+                href={localePath(locale, item.href)}
                 onClick={() => setOpen(false)}
                 style={{
                   padding: "10px 14px", borderRadius: 12, textDecoration: "none",

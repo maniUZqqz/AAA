@@ -5,7 +5,7 @@ from django.utils.html import format_html
 
 from services.ai import factory, providers
 
-from .models import ModelProvider
+from .models import ModelProvider, StoreAIPolicy
 
 
 @admin.register(ModelProvider)
@@ -14,7 +14,7 @@ class ModelProviderAdmin(admin.ModelAdmin):
         "capability", "name", "kind", "model_name",
         "where", "priority", "is_active", "health_badge",
     ]
-    list_filter = ["capability", "kind", "is_active"]
+    list_filter = ["capability", "kind", "is_active", "is_approved", "data_location"]
     list_editable = ["priority", "is_active"]
     search_fields = ["name", "model_name", "base_url"]
     actions = ["test_connection", "activate", "deactivate"]
@@ -37,6 +37,17 @@ class ModelProviderAdmin(admin.ModelAdmin):
             "classes": ["collapse"],
             "description": "JSON. برای سرویس‌های تصویر و ویدیو مسیر خروجی و "
                            "حالت sync/async اینجا تنظیم می‌شود.",
+        }),
+        ("حریم داده", {
+            "fields": [
+                "is_approved", "data_location", "allowed_data",
+                "data_retention", "privacy_policy_url",
+            ],
+            "description": "این بخش تزئینی نیست: فروشگاهی که «فقط سرویس‌های تأییدشده» "
+                           "را انتخاب کرده، سرویس بدون تیکِ «تأییدشده» را اصلاً "
+                           "نمی‌بیند و کارش با پیام روشن fail می‌شود. "
+                           "«مجاز برای کدام داده» را خالی بگذاری، سرویس بیرونی "
+                           "فقط محصول و برند می‌گیرد و پیام مشتری هرگز نمی‌رود.",
         }),
         ("سلامت", {"fields": ["checked_at", "is_healthy", "last_error"]}),
     ]
@@ -76,3 +87,34 @@ class ModelProviderAdmin(admin.ModelAdmin):
     @admin.action(description="غیرفعال کردن")
     def deactivate(self, request, queryset):
         self.message_user(request, f"{queryset.update(is_active=False)} مورد غیرفعال شد.")
+
+
+@admin.register(StoreAIPolicy)
+class StoreAIPolicyAdmin(admin.ModelAdmin):
+    """Per-store answer to "may this shop's data leave our servers?".
+
+    Kept as its own screen rather than an inline on Store, because this is the
+    one setting an operator must be able to audit across every shop at once —
+    "who is on Local Only" has to be a single list, not thirty clicks.
+    """
+
+    list_display = ["store", "mode", "allow_customer_data_external", "acknowledged_at"]
+    list_filter = ["mode", "allow_customer_data_external"]
+    search_fields = ["store__name", "store__slug"]
+    autocomplete_fields = ["store"]
+    readonly_fields = ["created_at", "updated_at"]
+
+    fieldsets = [
+        ("فروشگاه", {"fields": ["store"]}),
+        ("سیاست", {
+            "fields": ["mode", "allow_customer_data_external"],
+            "description": "«فقط لوکال» یعنی اگر مدل محلی نبود، کار fail می‌شود — "
+                           "نه اینکه بی‌سروصدا به API بیرونی برود. "
+                           "صداگذاری هم بیرونی است، پس در این حالت کار نمی‌کند.",
+        }),
+        ("رضایت", {
+            "fields": ["acknowledged_at", "acknowledged_by"],
+            "description": "چه کسی و کِی این سیاست را تأیید کرده.",
+        }),
+        ("زمان", {"fields": ["created_at", "updated_at"], "classes": ["collapse"]}),
+    ]

@@ -102,11 +102,35 @@ class Subscription(TimeStampedModel):
     # ------------------------------------------------------------------
 
     @property
-    def is_usable(self) -> bool:
+    def grace_until(self):
+        """End of the window a lapsed subscription keeps working.
+
+        A renewal can fail for reasons that have nothing to do with intent to
+        pay — an expired card, a gateway outage. Cutting service off at the
+        exact second the period ends turns those into churn.
+        """
+        from django.conf import settings
+
+        days = int(getattr(settings, "UPMARKET_PAYMENT", {}).get("GRACE_DAYS", 3))
+        return self.period_end + timedelta(days=days)
+
+    @property
+    def in_grace(self) -> bool:
+        now = timezone.now()
         return (
-            self.status in (self.Status.ACTIVE, self.Status.TRIALING)
-            and self.period_end > timezone.now()
+            self.status in (self.Status.ACTIVE, self.Status.PAST_DUE)
+            and self.period_end <= now < self.grace_until
         )
+
+    @property
+    def is_usable(self) -> bool:
+        if self.status in (self.Status.ACTIVE, self.Status.TRIALING) and (
+            self.period_end > timezone.now()
+        ):
+            return True
+        # A trial that runs out is over; only a subscription that has paid
+        # before gets the benefit of the doubt.
+        return self.in_grace
 
     @property
     def days_left(self) -> int:
@@ -149,6 +173,12 @@ class Usage(TimeStampedModel):
         RESERVED = "RESERVED", "رزرو‌شده"
         COMMITTED = "COMMITTED", "مصرف‌شده"
         RELEASED = "RELEASED", "آزاد‌شده"
+        # Kept apart from RELEASED on purpose. Released = the job crashed and
+        # produced nothing. Refunded = it produced something, we charged for
+        # it, and then the output was judged unusable. Folding the two together
+        # would answer "how much are we giving back for bad output?" wrongly —
+        # and that number is the one that says whether the product works.
+        REFUNDED = "REFUNDED", "برگشت‌خورده (کیفیت)"
 
     subscription = models.ForeignKey(
         Subscription, on_delete=models.CASCADE, related_name="usage"
@@ -167,12 +197,34 @@ class Usage(TimeStampedModel):
     # true when the work ran on someone else's API instead of our GPU
     external = models.BooleanField(default=False)
 
+    # ---- quality ---------------------------------------------------------
+    # Filled when a refund happens. `attempt` counts how many times the store
+    # has asked for this same thing: the quality guarantee is defined in
+    # attempts, so the number has to live on the ledger row, not in a log line.
+    attempt = models.PositiveSmallIntegerField(default=1)
+    #: the reservation this one is a second go at, so an attempt chain can be
+    #: walked without inventing a synthetic "same thing" key
+    retry_of = models.ForeignKey(
+        "self", on_delete=models.SET_NULL, null=True, blank=True, related_name="retries"
+    )
+    quality_reason = models.CharField(max_length=200, blank=True)
+    quality_source = models.CharField(
+        max_length=10, blank=True,
+        choices=[("CUSTOMER", "نظر فروشگاه‌دار"), ("AUTO", "بررسی خودکار")],
+    )
+
     class Meta:
         ordering = ["-created_at"]
         indexes = [
             models.Index(fields=["subscription", "metric", "period_start", "state"]),
             models.Index(fields=["store", "created_at"]),
+            models.Index(fields=["job", "state"]),
         ]
 
     def __str__(self):
         return f"{self.store_id} {self.metric} {self.quantity} [{self.state}]"
+
+
+# Payments live in their own module for readability; Django needs them
+# imported here to register with this app.
+from .payment_models import BillingEvent, Payment  # noqa: E402,F401

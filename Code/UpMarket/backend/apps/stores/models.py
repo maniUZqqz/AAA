@@ -70,3 +70,58 @@ class StoreProfile(models.Model):
 def create_store_profile(sender, instance, created, **kwargs):
     if created:
         StoreProfile.objects.get_or_create(store=instance)
+
+
+class Membership(TimeStampedModel):
+    """A person's seat in a store, with a role.
+
+    `Store.owner` is not a row here. Ownership is the tenant's anchor — who
+    pays and who can delete — and folding it into the membership table would
+    make it possible to remove the last owner and orphan a paying store. The
+    access layer treats the owner as OWNER without needing a row.
+    """
+
+    class Role(models.TextChoices):
+        OWNER = "OWNER", "مالک"
+        ADMIN = "ADMIN", "مدیر"
+        MARKETING = "MARKETING", "بازاریابی"
+        CONTENT_MANAGER = "CONTENT", "مدیر محتوا"
+        SUPPORT = "SUPPORT", "پشتیبانی"
+        VIEWER = "VIEWER", "بازدیدکننده"
+
+    store = models.ForeignKey(Store, on_delete=models.CASCADE, related_name="memberships")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="store_memberships")
+    role = models.CharField(max_length=12, choices=Role.choices, default=Role.VIEWER)
+    is_active = models.BooleanField(default=True)
+
+    invited_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    #: Removing access should be reversible and answerable ("who removed me?"),
+    #: so a seat is deactivated rather than deleted.
+    removed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["store", "user"], name="one_seat_per_user_per_store"),
+        ]
+        indexes = [models.Index(fields=["user", "is_active"])]
+        ordering = ["store", "role", "id"]
+        verbose_name = "عضو فروشگاه"
+        verbose_name_plural = "اعضای فروشگاه"
+
+    def __str__(self):
+        return f"{self.user} @ {self.store} ({self.get_role_display()})"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        if self.store_id and self.user_id and self.store.owner_id == self.user_id:
+            raise ValidationError(
+                "مالک فروشگاه به‌صورت خودکار دسترسی کامل دارد و نیازی به عضویت ندارد."
+            )
+
+
+# The sales-agent settings live in their own module for size, but Django only
+# discovers models imported from here.
+from .agent_settings import SalesAgentSettings  # noqa: E402,F401

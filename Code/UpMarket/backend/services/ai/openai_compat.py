@@ -169,14 +169,60 @@ class OpenAICompatProvider:
 
     # ------------------------------------------------------------------
 
-    def generate_json(self, prompt, *, schema_keys=None, **kwargs):
-        """Structured output with the same repair ladder as the local provider."""
-        kwargs.setdefault("json_mode", True)
-        text = self.generate(prompt, **kwargs)
+    def generate_json(
+        self,
+        model,
+        prompt,
+        *,
+        system=None,
+        images=None,
+        options=None,
+        repair_attempts=1,
+        timeout=None,
+        schema_keys=None,
+    ):
+        """Structured output. **Signature and return type match OllamaProvider.**
+
+        That is not cosmetic. `apps.ai.services._single_call` calls this with a
+        positional model and unpacks `(parsed, raw)`; when this method took only
+        a keyword model and returned a bare dict, every switch of TEXT to an API
+        died with a TypeError before the first request left the machine. Nothing
+        caught it because every test at that layer mocks the provider — the
+        mismatch only appears against a real row.
+
+        Returns:
+            (parsed_dict, raw_text)
+        """
+        json_options = {"temperature": 0.2}
+        json_options.update(options or {})
+
+        text = self.generate(
+            prompt,
+            model=model or self.model,
+            system=system,
+            images=images,
+            json_mode=True,
+            temperature=json_options.get("temperature"),
+            num_predict=json_options.get("num_predict"),
+            timeout=timeout,
+        )
 
         parsed = extract_json_block(text)
         if parsed is None:
             parsed = repair_json(text)
+        if parsed is None and repair_attempts > 0:
+            # Same ladder as the local provider: hand the broken output back
+            # once with the complaint attached. Remote models fail this way for
+            # the same reason local ones do — a stray sentence before the brace.
+            text = self.generate(
+                f"{prompt}\n\nخروجی قبلی JSON معتبر نبود. فقط JSON برگردان، بدون توضیح.",
+                model=model or self.model,
+                system=system,
+                json_mode=True,
+                temperature=0,
+                timeout=timeout,
+            )
+            parsed = extract_json_block(text) or repair_json(text)
         if parsed is None:
             raise OllamaMalformedOutput(
                 f"خروجی سرویس JSON معتبر نبود: {text[:200]}"
@@ -187,7 +233,7 @@ class OpenAICompatProvider:
                 raise OllamaMalformedOutput(
                     f"کلیدهای لازم در خروجی نبود: {', '.join(missing)}"
                 )
-        return parsed
+        return parsed, text
 
     # ------------------------------------------------------------------
 

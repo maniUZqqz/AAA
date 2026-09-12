@@ -3,6 +3,9 @@ from django.utils.html import format_html
 
 from . import services
 from .models import Plan, Subscription, Usage
+from .payment_models import BillingEvent, Payment
+from .payment_services import confirm_manual
+from .payments import PaymentError
 
 
 @admin.register(Plan)
@@ -84,3 +87,69 @@ class UsageAdmin(admin.ModelAdmin):
     list_filter = ["metric", "state", "external"]
     search_fields = ["store__name", "detail"]
     readonly_fields = [f.name for f in Usage._meta.fields]
+
+
+@admin.register(Payment)
+class PaymentAdmin(admin.ModelAdmin):
+    """Invoices, and the one place a bank transfer gets confirmed.
+
+    Payments are never created here — they come from the site. The admin exists
+    to answer "did this person pay" and to confirm the transfers a gateway
+    cannot see.
+    """
+
+    list_display = (
+        "invoice_number", "created_at", "store", "plan",
+        "amount_toman", "provider", "status",
+    )
+    list_filter = ("status", "provider", "created_at")
+    search_fields = ("invoice_number", "reference", "token", "store__name")
+    date_hierarchy = "created_at"
+    readonly_fields = (
+        "invoice_number", "store", "plan", "amount_toman", "provider", "token",
+        "reference", "paid_at", "refunded_at", "confirmed_by", "subscription",
+        "gateway_response", "error", "created_at", "updated_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        # An invoice is a financial record. Correct it with a refund, not a
+        # delete.
+        return False
+
+    @admin.action(description="تأیید واریز بانکی (فقط پرداخت دستی)")
+    def confirm_transfer(self, request, queryset):
+        done = failed = 0
+        for payment in queryset:
+            try:
+                confirm_manual(payment, actor=request.user)
+                done += 1
+            except PaymentError as exc:
+                failed += 1
+                self.message_user(request, f"{payment.invoice_number}: {exc}", level="error")
+        if done:
+            self.message_user(request, f"{done} واریز تأیید و اشتراک فعال شد.")
+
+    actions = ["confirm_transfer"]
+
+
+@admin.register(BillingEvent)
+class BillingEventAdmin(admin.ModelAdmin):
+    """Append-only history. Read here, never written here."""
+
+    list_display = ("created_at", "store", "kind", "summary", "actor")
+    list_filter = ("kind", "created_at")
+    search_fields = ("summary", "store__name")
+    date_hierarchy = "created_at"
+    readonly_fields = tuple(f.name for f in BillingEvent._meta.fields)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

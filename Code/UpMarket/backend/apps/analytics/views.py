@@ -5,10 +5,11 @@ from rest_framework.views import APIView
 from apps.stores.models import Store
 
 from .services import store_overview, store_sales, store_timeseries
+from apps.stores import access
 
 
 def _owned_store(request, store_id) -> Store:
-    return get_object_or_404(Store.objects.filter(owner=request.user), pk=store_id)
+    return access.get_store(request.user, store_id, access.ANALYTICS, write=False)
 
 
 class StoreAnalyticsView(APIView):

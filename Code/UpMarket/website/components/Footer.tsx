@@ -1,8 +1,22 @@
 import Link from "next/link";
 
-import { nav, site } from "@/lib/content";
+import { siteFor } from "@/lib/content";
+import { dict } from "@/lib/dict";
+import { localePath, type Locale } from "@/lib/i18n";
 
-export default function Footer() {
+const linkStyle = {
+  color: "var(--text-2)",
+  textDecoration: "none",
+  fontSize: ".88rem",
+} as const;
+
+const colTitle = { fontSize: ".9rem", marginBottom: 12 } as const;
+const list = { listStyle: "none", padding: 0, display: "grid", gap: 8 } as const;
+
+export default function Footer({ locale }: { locale: Locale }) {
+  const site = siteFor(locale);
+  const t = dict(locale);
+
   return (
     <footer style={{ borderTop: "1px solid var(--line)", background: "var(--bg-soft)" }}>
       <div className="wrap" style={{ paddingBlock: 48 }}>
@@ -14,54 +28,57 @@ export default function Footer() {
             <p className="muted" style={{ marginTop: 8, lineHeight: 1.9 }}>
               {site.tagline}
             </p>
-          </div>
-
-          <div>
-            <h3 style={{ fontSize: ".9rem", marginBottom: 12 }}>محصول</h3>
-            <ul style={{ listStyle: "none", padding: 0, display: "grid", gap: 8 }}>
-              {nav.slice(0, 4).map((i) => (
-                <li key={i.href}>
-                  <Link href={i.href} style={{ color: "var(--text-2)", textDecoration: "none", fontSize: ".88rem" }}>
-                    {i.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div>
-            <h3 style={{ fontSize: ".9rem", marginBottom: 12 }}>شرکت</h3>
-            <ul style={{ listStyle: "none", padding: 0, display: "grid", gap: 8 }}>
-              {nav.slice(4).map((i) => (
-                <li key={i.href}>
-                  <Link href={i.href} style={{ color: "var(--text-2)", textDecoration: "none", fontSize: ".88rem" }}>
-                    {i.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div>
-            <h3 style={{ fontSize: ".9rem", marginBottom: 12 }}>شروع کنید</h3>
-            <p className="muted" style={{ marginBottom: 12 }}>
-              دو هفته رایگان، بدون کارت بانکی.
-            </p>
-            <a href={`${site.panelUrl}/register`} className="btn btn-primary">
-              ساخت حساب
+            <a
+              href={`${site.panelUrl}/register`}
+              className="btn btn-primary"
+              style={{ marginTop: 16 }}
+            >
+              {t.cta.free}
             </a>
           </div>
+
+          {t.footer.map((col) => (
+            <div key={col.title}>
+              <h3 style={colTitle}>{col.title}</h3>
+              <ul style={list}>
+                {col.links.map((i) => (
+                  <li key={i.href}>
+                    <Link href={localePath(locale, i.href)} style={linkStyle}>
+                      {i.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
 
         <div
           style={{
-            marginTop: 40, paddingTop: 24, borderTop: "1px solid var(--line)",
-            display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "space-between",
+            marginTop: 40,
+            paddingTop: 24,
+            borderTop: "1px solid var(--line)",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 12,
+            justifyContent: "space-between",
+            alignItems: "center",
           }}
         >
           <span className="muted">
-            © {new Date().getFullYear()} {site.name} — همه حقوق محفوظ است.
+            © {new Date().getFullYear()} {site.name} — {t.common.rights}
           </span>
+
+          {/* Legal links belong in the footer on every page — that is where
+              people look for them, and where a reviewer expects them. */}
+          <nav style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+            {t.legal.map((i) => (
+              <Link key={i.href} href={localePath(locale, i.href)} style={linkStyle}>
+                {i.label}
+              </Link>
+            ))}
+          </nav>
+
           <a href={`mailto:${site.email}`} className="muted" style={{ textDecoration: "none" }}>
             {site.email}
           </a>

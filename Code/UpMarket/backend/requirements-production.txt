@@ -1,0 +1,14 @@
+# Production-only dependencies.
+#
+# Kept out of requirements.txt on purpose: the dev machine runs SQLite with
+# `manage.py runserver`, and neither of these is needed there. Installing
+# psycopg on every developer's laptop to support a database they do not use is
+# friction for nothing.
+-r requirements.txt
+
+# WSGI server. runserver is single-threaded and explicitly not for production.
+gunicorn>=22.0
+
+# PostgreSQL driver. The [binary] extra ships a wheel with libpq inside, so
+# there is no compiler or libpq-dev needed at install time.
+psycopg[binary]>=3.1

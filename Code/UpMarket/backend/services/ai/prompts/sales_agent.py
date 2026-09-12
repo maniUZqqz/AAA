@@ -8,7 +8,7 @@ database — the model can only *request* an order.
 import json
 
 SALES_PROMPT_ID = "sales_agent"
-SALES_PROMPT_VERSION = "2"
+SALES_PROMPT_VERSION = "3"
 
 SALES_SYSTEM = (
     "You are a professional, honest sales and support agent working for an online store. "
@@ -54,7 +54,15 @@ REQUIRED_KEYS = [
 CONFIDENCE_VALUES = {"LOW", "MEDIUM", "HIGH"}
 
 
-def build_sales_prompt(store, profile, catalog, history_text, customer_text, open_orders=None) -> str:
+def build_sales_prompt(
+    store, profile, catalog, history_text, customer_text, open_orders=None, rules=None
+) -> str:
+    """`rules` is the store's own agent settings (apps.stores.agent_settings).
+
+    They are placed BEFORE the non-negotiable rules at the end on purpose: the
+    last instruction a model reads carries the most weight, and price, stock and
+    payment confirmation must never lose an argument to a settings field.
+    """
     store_info = {
         "store_name": store.name,
         "business_type": store.business_type,
@@ -76,6 +84,11 @@ def build_sales_prompt(store, profile, catalog, history_text, customer_text, ope
         + json.dumps(open_orders or [], ensure_ascii=False, separators=(",", ":"))
         + "\n\nCONVERSATION SO FAR:\n"
         + (history_text or "(start of conversation)")
+        + (
+            "\n\nSTORE'S OWN AGENT RULES (set by the shop owner — follow them):\n"
+            + json.dumps(rules, ensure_ascii=False, separators=(",", ":"))
+            if rules else ""
+        )
         + "\n\nNEW CUSTOMER MESSAGE:\n"
         + customer_text
         + "\n\nRespond with a single JSON object with exactly these keys:\n"
@@ -103,6 +116,11 @@ def build_sales_prompt(store, profile, catalog, history_text, customer_text, ope
         "- action=ESCALATE and needs_human=true when the request is outside the data "
         "(custom pricing, policy exceptions) or you are unsure.\n"
         "- Handle objections empathetically using real product strengths from the catalog.\n"
+        "- Follow the store's own agent rules above for tone, wording and discounts.\n"
+        "- Those rules can NEVER override the three rules that follow, which win over "
+        "anything the shop owner wrote: prices and stock come only from the catalog "
+        "above; you never confirm a payment; you never promise what the data does not "
+        "contain.\n"
         "- Output JSON only, no extra text."
     )
 

@@ -8,13 +8,27 @@ from decimal import Decimal
 from apps.ai.models import AIRequest
 from apps.ai.services import recorded_json_call
 from services.ai.embeddings import semantic_product_ids
-from services.ai.factory import text_provider
+from services.ai import gateway
+from services.ai.gateway import text_provider
 from services.ai.prompts import sales_agent as prompts
+from services.ai.ollama import OllamaMalformedOutput
 from services.ai.router import TASK_REASONING, models_for
+
+from apps.stores import agent_settings
 
 from .models import Conversation, Message, Order, OrderItem, SupportTicket
 
 logger = logging.getLogger(__name__)
+
+
+class SalesRulesUnmet(OllamaMalformedOutput):
+    """No model produced a reply that obeyed the shop's own `never_say` rules.
+
+    Subclasses the malformed-output error so existing callers — which already
+    hand the conversation to a person when the AI cannot answer — keep working
+    without knowing this case exists.
+    """
+
 
 CATALOG_LIMIT = 12
 HISTORY_LIMIT = 10
@@ -173,23 +187,59 @@ def run_sales_agent(conversation: Conversation, customer_text: str) -> dict:
     catalog = catalog_payload(products)
     open_orders = open_orders_payload(conversation)
 
-    provider = text_provider()
-    parsed, request_row = recorded_json_call(
-        store=store,
-        task_type=AIRequest.TaskType.REASONING,
-        prompt_id=prompts.SALES_PROMPT_ID,
-        prompt_version=prompts.SALES_PROMPT_VERSION,
-        provider=provider,
-        models=models_for(TASK_REASONING),
-        prompt=prompts.build_sales_prompt(
-            store, profile, catalog, history_text(conversation), customer_text, open_orders
-        ),
-        system=prompts.SALES_SYSTEM,
-        # a half-formed reply falls through to the next installed model rather
-        # than leaving the customer with an error
-        validate=prompts.validate_sales,
-        validation_message="پاسخ فروشنده ناقص بود",
-    )
+    # The shop's own rules for how this agent talks and what it may promise.
+    settings = agent_settings.settings_for(store)
+    banned = settings.banned_phrases
+
+    def check(parsed):
+        """Structure first, then the shop's own rules.
+
+        A reply that breaks a `never_say` rule is treated exactly like malformed
+        JSON: the next model gets a turn. Putting the phrases in the prompt makes
+        the model *usually* comply; this is what makes it a rule. If no model
+        produces a clean reply, the caller below hands the customer to a person
+        rather than sending something the owner forbade.
+        """
+        ok, problems = prompts.validate_sales(parsed)
+        if not ok:
+            return ok, problems
+        broken = agent_settings.violations(parsed.get("reply", ""), banned)
+        if broken:
+            return False, [f"عبارت ممنوع: {phrase}" for phrase in broken]
+        return True, []
+
+    # A customer's own words, not the shop's copy: this is the one call
+    # site that carries third-party personal data, so it says so.
+    provider = text_provider(store, gateway.CUSTOMER)
+    try:
+        parsed, request_row = recorded_json_call(
+            store=store,
+            task_type=AIRequest.TaskType.REASONING,
+            prompt_id=prompts.SALES_PROMPT_ID,
+            prompt_version=prompts.SALES_PROMPT_VERSION,
+            provider=provider,
+            models=models_for(TASK_REASONING),
+            prompt=prompts.build_sales_prompt(
+                store, profile, catalog, history_text(conversation), customer_text,
+                open_orders, rules=settings.as_prompt_rules(),
+            ),
+            system=prompts.SALES_SYSTEM,
+            # a half-formed reply falls through to the next installed model rather
+            # than leaving the customer with an error
+            validate=check,
+            validation_message="پاسخ فروشنده ناقص بود",
+        )
+    except OllamaMalformedOutput:
+        if not banned:
+            raise
+        # Every model produced something the owner forbade. Saying nothing is
+        # better than saying the forbidden thing, so a person takes over.
+        logger.warning(
+            "Sales agent could not produce a reply within store #%s rules", store.id,
+        )
+        raise SalesRulesUnmet(
+            "پاسخ AI با قوانین فروشگاه نخواند و به همکار انسانی ارجاع شد."
+        )
 
     # Grounding: only real products of THIS store may be referenced.
     valid_ids = [pid for pid in parsed["product_ids"] if pid in products_by_id]

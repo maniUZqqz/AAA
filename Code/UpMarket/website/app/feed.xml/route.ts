@@ -1,5 +1,5 @@
 import { getPosts } from "@/lib/blog";
-import { site } from "@/lib/content";
+import { siteBase as site } from "@/lib/content";
 import { SITE_URL, abs } from "@/lib/seo";
 
 /** RSS. Cheap to serve, and it is still how aggregators and a fair number of

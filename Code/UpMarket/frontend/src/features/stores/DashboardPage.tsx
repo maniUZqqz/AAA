@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { api, errorMessage, fetchAllPages } from "../../api/client";
+import { clearPendingPlan, getPendingPlan } from "../billing/pendingPlan";
 import {
   Button,
   Card,
@@ -42,12 +43,27 @@ export default function DashboardPage() {
     setBusy(true);
     setError(null);
     try {
-      await api.post("/stores/", {
+      const created = await api.post("/stores/", {
         name,
         business_type: businessType,
         description,
         target_audience: audience,
       });
+
+      // Apply the plan the visitor picked on the public site, if any. A
+      // subscription needs a store, so this is the first moment it can be
+      // recorded. A failure here must not fail store creation - the store is
+      // what the user asked for, and the plan page can set it again.
+      const pending = getPendingPlan();
+      if (pending && created?.data?.id) {
+        try {
+          await api.post(`/stores/${created.data.id}/subscription/`, { plan: pending });
+        } catch {
+          /* plan stays unset; recoverable from the plan page */
+        } finally {
+          clearPendingPlan();
+        }
+      }
       setName("");
       setBusinessType("");
       setDescription("");

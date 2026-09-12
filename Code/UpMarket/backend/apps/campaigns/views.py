@@ -9,6 +9,7 @@ from apps.jobs.services import dispatch_job
 from .models import Campaign, PublishJob
 from .serializers import CampaignSerializer
 from .tasks import publish_campaign_task
+from apps.stores import access
 
 SUPPORTED_PLATFORMS = {"instagram", "telegram", "linkedin"}
 
@@ -18,7 +19,7 @@ class CampaignViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = (
-            Campaign.objects.filter(store__owner=self.request.user)
+            Campaign.objects.filter(store__in=access.stores_for(self.request.user))
             .select_related("product", "poster", "product_image", "caption", "video_script")
             .prefetch_related("publish_jobs")
         )

@@ -12,13 +12,14 @@ from .serializers import (
     ProductSerializer,
     ProductVariantSerializer,
 )
+from apps.stores import access
 
 
 class CategoryViewSet(viewsets.ModelViewSet):
     serializer_class = CategorySerializer
 
     def get_queryset(self):
-        qs = Category.objects.filter(store__owner=self.request.user)
+        qs = Category.objects.filter(store__in=access.stores_for(self.request.user))
         store_id = self.request.query_params.get("store")
         if store_id:
             qs = qs.filter(store_id=store_id)
@@ -31,7 +32,7 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = (
-            Product.objects.filter(store__owner=self.request.user)
+            Product.objects.filter(store__in=access.stores_for(self.request.user))
             .select_related("store", "category")
             .prefetch_related("images", "variants", "attributes")
         )

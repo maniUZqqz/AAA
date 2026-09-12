@@ -3,6 +3,7 @@ from rest_framework import serializers
 from apps.stores.models import Store
 
 from .models import Category, Product, ProductAttribute, ProductImage, ProductVariant
+from apps.stores import access
 
 
 class OwnedStoreField(serializers.PrimaryKeyRelatedField):
@@ -12,7 +13,7 @@ class OwnedStoreField(serializers.PrimaryKeyRelatedField):
         request = self.context.get("request")
         if request is None or not request.user.is_authenticated:
             return Store.objects.none()
-        return Store.objects.filter(owner=request.user)
+        return access.stores_for(request.user)
 
 
 class OwnedCategoryField(serializers.PrimaryKeyRelatedField):
@@ -22,7 +23,7 @@ class OwnedCategoryField(serializers.PrimaryKeyRelatedField):
         request = self.context.get("request")
         if request is None or not request.user.is_authenticated:
             return Category.objects.none()
-        return Category.objects.filter(store__owner=request.user)
+        return Category.objects.filter(store__in=access.stores_for(request.user))
 
 
 class CategorySerializer(serializers.ModelSerializer):

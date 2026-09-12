@@ -120,6 +120,17 @@ def snapshot(store) -> dict:
     except NoSubscription:
         return {"subscription": None, "metrics": [], "blocked": True}
 
+    # Refunds this period, per metric. Shown next to usage on purpose: a store
+    # that got three credits back should see that, not quietly notice its
+    # allowance lasting longer than expected.
+    refunded = {
+        row["metric"]: row["total"]
+        for row in Usage.objects.filter(
+            subscription=sub, period_start=sub.period_start,
+            state=Usage.State.REFUNDED,
+        ).values("metric").annotate(total=Sum("quantity"))
+    }
+
     metrics = []
     for metric, label in Usage.Metric.choices:
         allowed = sub.allowance(metric)
@@ -131,6 +142,7 @@ def snapshot(store) -> dict:
             "used": spent,
             "remaining": max(0, allowed - spent),
             "percent": round(spent / allowed * 100, 1) if allowed else 0.0,
+            "refunded": refunded.get(metric, 0),
         })
     return {
         "subscription": {

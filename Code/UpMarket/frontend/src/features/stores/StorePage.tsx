@@ -2,6 +2,10 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { api, errorMessage, fetchAllPages } from "../../api/client";
+import AgentSettingsCard from "../../components/AgentSettingsCard";
+import DataPolicyCard from "../../components/DataPolicyCard";
+import MembersCard from "../../components/MembersCard";
+import OnboardingCard from "../../components/OnboardingCard";
 import {
   Button,
   Card,
@@ -140,6 +144,8 @@ export default function StorePage() {
           </Link>
         </div>
       </div>
+      {id && <OnboardingCard storeId={id} />}
+
       <ErrorBox message={error} />
       {notice && (
         <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">
@@ -228,6 +234,12 @@ export default function StorePage() {
           </div>
         </form>
       </Card>
+
+      {id && <AgentSettingsCard storeId={id} />}
+
+      {id && <DataPolicyCard storeId={id} />}
+
+      {id && <MembersCard storeId={id} />}
 
       <div>
         <SectionTitle>محصولات ({products?.length ?? 0})</SectionTitle>
