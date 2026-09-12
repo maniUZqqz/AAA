@@ -233,7 +233,12 @@ class ContentTaskTests(APITestCase):
         mock_extract.side_effect = fake_extract
         mock_concat.side_effect = fake_concat
 
-        job = Job.objects.create(store=self.store, type=Job.Type.VIDEO_GENERATION)
+        # Auto mode: no quality score exists yet, so nothing pauses and the
+        # whole video renders in one pass. Safe mode is covered separately —
+        # it is the default, and it stops after the first five seconds.
+        job = Job.objects.create(
+            store=self.store, type=Job.Type.VIDEO_GENERATION, mode=Job.Mode.AUTO,
+        )
         generate_video_task.apply(args=(job.id, script.id))
 
         job.refresh_from_db()
@@ -285,7 +290,9 @@ class ContentTaskTests(APITestCase):
             Path(out),
         )[1]
 
-        job = Job.objects.create(store=self.store, type=Job.Type.VIDEO_GENERATION)
+        job = Job.objects.create(
+            store=self.store, type=Job.Type.VIDEO_GENERATION, mode=Job.Mode.AUTO,
+        )
         generate_video_task.apply(args=(job.id, script.id))
 
         job.refresh_from_db()

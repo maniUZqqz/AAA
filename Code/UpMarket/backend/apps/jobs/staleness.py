@@ -40,7 +40,26 @@ RESTART_MESSAGE = (
     "سرور ری‌استارت شد و این کار از بین رفت. دوباره اجرا کنید."
 )
 
-ACTIVE_STATES = [Job.State.QUEUED, Job.State.RUNNING]
+#: Still in flight from the panel's point of view — `?active=true` uses this so
+#: a refreshed page re-attaches its progress view.
+ACTIVE_STATES = [
+    Job.State.QUEUED,
+    Job.State.RUNNING,
+    Job.State.PROCESSING,
+    Job.State.PREVIEW,
+    Job.State.WAITING_APPROVAL,
+    Job.State.APPROVED,
+    Job.State.RENDERING,
+    Job.State.QC,
+]
+
+#: States where the job is waiting for a **person**, not for a worker.
+#:
+#: These must never be reaped. A job parked for approval will legitimately sit
+#: there overnight, and failing it while the owner is asleep would throw away
+#: five seconds of finished GPU work and leave them with "این کار نیمه‌کاره رها
+#: شد" for something they were about to approve.
+HUMAN_STATES = [Job.State.PREVIEW, Job.State.WAITING_APPROVAL]
 
 
 def _int_env(name: str, default: int) -> int:
@@ -97,7 +116,7 @@ def stale_filter() -> Q:
     # one stays grouped. Dropping them would silently make EVERY queued job
     # subject to the short non-GPU deadline.
     running_too_long = Q(
-        state=Job.State.RUNNING,
+        state__in=[Job.State.RUNNING, Job.State.PROCESSING, Job.State.RENDERING, Job.State.QC],
         updated_at__lt=now - timedelta(seconds=running_stale_seconds()),
     )
     queued_too_long = Q(
@@ -109,6 +128,9 @@ def stale_filter() -> Q:
         type__in=GPU_QUEUE_TYPES,
         created_at__lt=now - timedelta(seconds=gpu_queued_stale_seconds()),
     )
+    # APPROVED is in neither clause on purpose: the owner has answered and a
+    # worker is about to pick it up, so it is measured by the running clock
+    # once it moves on rather than being failed in the handover.
     return running_too_long | queued_too_long | render_queued_too_long
 
 
@@ -120,14 +142,18 @@ def reap(queryset=None) -> int:
     """
     qs = Job.objects.all() if queryset is None else queryset
     try:
-        dead = list(qs.filter(state__in=ACTIVE_STATES).filter(stale_filter()))
+        dead = list(
+            qs.filter(state__in=ACTIVE_STATES)
+            .exclude(state__in=HUMAN_STATES)
+            .filter(stale_filter())
+        )
     except Exception as exc:  # noqa: BLE001 — e.g. table missing during migrate
         logger.debug("Job reaping skipped: %s", exc)
         return 0
 
     for job in dead:
         message = (
-            RUNNING_STALE_MESSAGE if job.state == Job.State.RUNNING else QUEUED_STALE_MESSAGE
+            QUEUED_STALE_MESSAGE if job.state == Job.State.QUEUED else RUNNING_STALE_MESSAGE
         )
         try:
             job.mark_failed(message)
@@ -146,6 +172,8 @@ def reap_on_start() -> int:
     if not getattr(settings, "CELERY_TASK_ALWAYS_EAGER", False):
         return 0
     try:
+        # Human-waiting jobs are swept too: their worker is gone with the
+        # process, so approving them would resume nothing.
         orphans = Job.objects.filter(state__in=ACTIVE_STATES)
         count = orphans.count()
         if count:

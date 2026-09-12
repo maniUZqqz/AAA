@@ -127,6 +127,12 @@ class VideoScene(models.Model):
     transition = models.CharField(
         max_length=12, choices=Transition.choices, default=Transition.CONTINUE
     )
+    #: Structured scene description from the script — characters, objects,
+    #: location, lighting, camera, clothing, colours, action. See
+    #: services.video.scene_state. Whatever the script leaves out is inherited
+    #: from the previous segment rather than reset, because silence means
+    #: "as before" and treating it as a reset is what makes stitched video drift.
+    state = models.JSONField(default=dict, blank=True)
 
     class Meta:
         ordering = ["index"]
@@ -156,6 +162,10 @@ class VideoSegment(TimeStampedModel):
     retry_count = models.PositiveIntegerField(default=0)
     error = models.TextField(blank=True)
     metadata = models.JSONField(default=dict, blank=True)
+    #: The state this segment actually rendered with, after inheritance. The
+    #: next segment starts from this rather than from the script, so a resumed
+    #: job continues the video that exists instead of the one that was planned.
+    scene_state = models.JSONField(default=dict, blank=True)
 
     class Meta:
         ordering = ["index"]

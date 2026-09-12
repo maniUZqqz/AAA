@@ -27,6 +27,9 @@ from services.audio.tts import get_tts_provider
 from services.comfyui.client import ComfyUIClient
 from services.comfyui.workflows import load_workflow, patch_workflow
 from services.imaging.preprocess import prepare_source_image
+from apps.jobs import metrics
+from apps.jobs.metrics import RenderMetric
+from services.video import scene_state
 from services.video.ffmpeg import (
     concat_audio,
     concat_videos,
@@ -474,6 +477,30 @@ def _flux_anchor(client, scene, out_dir):
     return client.generate(patched, out_dir, filename=f"anchor_{scene.index}.png")
 
 
+def _should_pause(job, segment) -> bool:
+    """Does this finished segment need a person to look at it?
+
+    This is the whole difference between the two modes, and the reason the
+    default is Safe: a shop owner rendering their first video should find out
+    the result is wrong after five seconds of GPU, not after forty.
+
+    Auto does not mean "never stop". It means "stop only when the output looks
+    bad", which is why it consults the quality score. Until the Vision QC of
+    phase 21 exists there is no score to consult, so Auto runs straight
+    through — and says so here rather than pretending to have judged.
+    """
+    if job.mode == Job.Mode.SAFE:
+        return True
+
+    score = (segment.metadata or {}).get("quality_score")
+    if score is None:
+        # No judge yet. Not "it passed" — "nobody looked".
+        return False
+
+    threshold = settings.UPMARKET_AI.get("QUALITY_PAUSE_THRESHOLD", 0.6)
+    return float(score) < float(threshold)
+
+
 def _anchor_for_segment(scene, previous_frame_path, product_image_path, segment, client, out_dir):
     """Choose the real anchor image for a segment, recording its origin."""
     if scene.index == 1 or previous_frame_path is None:
@@ -516,22 +543,17 @@ def generate_video_task(self, job_id, script_id):
         script.status = VideoScript.Status.GENERATING
         script.save(update_fields=["status", "updated_at"])
         job.total_steps = len(scenes) + 1
-        job.mark_running("آماده‌سازی تولید ویدیو")
+        job.advance(Job.State.PROCESSING, label="آماده‌سازی تولید ویدیو")
 
-        # only bill for what still has to render — a resumed run must not
-        # charge again for segments that finished last time
-        todo_seconds = sum(
-            scene.duration for scene in scenes
-            if segments[scene.index].status != VideoSegment.Status.DONE
-        )
-        quota = (
-            billing.reserve(
-                script.store, Usage.Metric.VIDEO_SECONDS, int(todo_seconds), job=job,
-                detail=f"script {script.id}",
-                external=not providers.uses_own_gpu(providers.VIDEO),
-            )
-            if todo_seconds else None
-        )
+        # Billed per segment, not per script.
+        #
+        # A single up-front reservation for the whole video would sit on the
+        # store's allowance for as long as the job is parked waiting for
+        # approval — possibly overnight. Worse, a shop that looks at the first
+        # five seconds and walks away would have reserved forty. Reserving one
+        # segment at a time means an abandoned job has paid for exactly what
+        # the owner actually saw.
+        external_render = not providers.uses_own_gpu(providers.VIDEO)
 
         out_dir = Path(settings.MEDIA_ROOT) / "generated" / "videos" / f"script_{script.id}"
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -540,25 +562,54 @@ def generate_video_task(self, job_id, script_id):
         graph_template, manifest = load_workflow("wan22_i2v", "v1")
 
         previous_frame_path = None
+        previous_state = None
         for step, scene in enumerate(scenes, start=1):
             segment = segments[scene.index]
             if segment.status == VideoSegment.Status.DONE and segment.last_frame:
                 previous_frame_path = Path(segment.last_frame.path)
+                # Continue from the state this segment RENDERED with, not from
+                # what the script planned: a resumed job should continue the
+                # video that exists.
+                previous_state = scene_state.SceneState.from_dict(segment.scene_state)
                 job.mark_progress(step, f"قطعه {scene.index} از قبل آماده است")
                 continue
 
+            # Checkpoint before spending GPU on the next five seconds. A
+            # Celery task cannot be killed reliably, so it has to ask.
+            if job.cancel_pending():
+                logger.info("Job %s stopping before segment %s (cancelled)", job.id, scene.index)
+                return {"script_id": script.id, "cancelled_at_segment": scene.index}
+
             job.mark_progress(step, f"در حال تولید قطعه {scene.index} از {len(scenes)}")
+            quota = billing.reserve(
+                script.store, Usage.Metric.VIDEO_SECONDS, int(scene.duration), job=job,
+                detail=f"script {script.id} · قطعه {scene.index}",
+                external=external_render,
+            )
             segment.status = VideoSegment.Status.GENERATING
             segment.error = ""
             anchor_path = _anchor_for_segment(
                 scene, previous_frame_path, product_image_path, segment, client, out_dir
             )
             segment.save()
+            state = scene_state.from_scene(scene, previous_state)
+            # Measure every segment. Phase 0.5 needs real numbers, and a
+            # benchmark that only exists when someone remembers to run it is a
+            # benchmark that stays unrun.
+            measurement = metrics.measured(
+                RenderMetric.Kind.VIDEO_SEGMENT,
+                "wan22_i2v@v1",
+                output_units=scene.duration,
+                job=job,
+                store=script.store,
+                context={"segment_index": scene.index, "script_id": script.id},
+            )
             try:
                 uploaded_name = client.upload_image(anchor_path)
-                positive = scene.visual_prompt
-                if scene.motion_prompt:
-                    positive = f"{positive}. Motion: {scene.motion_prompt}"
+                # The last frame carries what one instant looked like; the
+                # state carries what the scene IS. Both, or the jacket changes
+                # colour halfway through.
+                positive = scene_state.build_prompt(scene, state)
                 patched = patch_workflow(
                     graph_template,
                     manifest,
@@ -569,15 +620,17 @@ def generate_video_task(self, job_id, script_id):
                     seed=random.randint(1, 2**31),
                     filename_prefix=f"upmarket/script_{script.id}/segment_{scene.index}",
                 )
-                video_path = client.generate(
-                    patched, out_dir, filename=f"segment_{scene.index}.mp4"
-                )
+                with measurement:
+                    video_path = client.generate(
+                        patched, out_dir, filename=f"segment_{scene.index}.mp4"
+                    )
                 frame_path = extract_last_frame(
                     video_path, out_dir / f"segment_{scene.index}_last.png"
                 )
                 segment.video.name = _media_rel(video_path)
                 segment.last_frame.name = _media_rel(frame_path)
                 segment.status = VideoSegment.Status.DONE
+                segment.scene_state = state.as_dict()
                 segment.metadata = {
                     **segment.metadata,
                     "workflow": "wan22_i2v@v1",
@@ -586,13 +639,47 @@ def generate_video_task(self, job_id, script_id):
                 }
                 segment.save()
                 previous_frame_path = frame_path
+                previous_state = state
             except Exception as exc:
                 segment.status = VideoSegment.Status.FAILED
                 segment.retry_count += 1
                 segment.error = str(exc)[:2000]
                 segment.save()
+                billing.release(quota, reason=type(exc).__name__)
                 raise
 
+            # This segment exists and is watchable — now it counts.
+            billing.commit(quota)
+
+            # A watchable preview now exists. Announce that first, then decide
+            # whether it blocks: PREVIEW is the moment the piece is available
+            # and is being judged, WAITING_APPROVAL is the moment a person has
+            # to answer. In Auto mode the first happens without the second.
+            if scene.index != scenes[-1].index:
+                job.advance(
+                    Job.State.PREVIEW,
+                    label=f"قطعه {scene.index} آماده شد",
+                    preview={
+                        "segment_index": scene.index,
+                        "segments_done": step,
+                        "segments_total": len(scenes),
+                        "video": segment.video.url if segment.video else None,
+                        "mode": job.mode,
+                    },
+                )
+                if _should_pause(job, segment):
+                    job.advance(
+                        Job.State.WAITING_APPROVAL,
+                        label=f"قطعه {scene.index} آماده است — نگاهی بینداز",
+                    )
+                    logger.info(
+                        "Job %s parked after segment %s (mode=%s)",
+                        job.id, scene.index, job.mode,
+                    )
+                    return {"script_id": script.id, "paused_after_segment": scene.index}
+                job.advance(Job.State.PROCESSING, label="ادامه‌ی تولید")
+
+        job.advance(Job.State.RENDERING, label="در حال اتصال قطعات ویدیو")
         job.mark_progress(len(scenes) + 1, "در حال اتصال قطعات ویدیو")
         done_segments = [segments[s.index] for s in scenes]
         final_path = concat_videos(
@@ -602,7 +689,8 @@ def generate_video_task(self, job_id, script_id):
         script.status = VideoScript.Status.READY
         script.save()
 
-        billing.commit(quota)  # the final file exists — now it counts
+        # Nothing to commit here: every segment was billed and committed as it
+        # finished. Stitching costs no GPU seconds.
         job.mark_completed(
             {"script_id": script.id, "final_video": script.final_video.url}
         )

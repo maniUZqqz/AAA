@@ -280,6 +280,10 @@ REST_FRAMEWORK = {
         "lead": os.getenv("THROTTLE_LEAD", "5/hour"),
         # Analytics is batched, so a real visit is a handful of requests.
         "event": os.getenv("THROTTLE_EVENT", "120/hour"),
+        # Password reset. Tight on purpose: each request sends a real email to
+        # someone who did not necessarily ask for it, so an unthrottled
+        # endpoint is a way to harass a shop owner's inbox from the outside.
+        "password_reset": os.getenv("THROTTLE_PASSWORD_RESET", "5/hour"),
     },
 }
 
@@ -424,6 +428,10 @@ UPMARKET_AI = {
     # charged for (apps.billing.credits). One miss is luck, two a coincidence,
     # three means the model cannot do this job today.
     "QUALITY_MAX_ATTEMPTS": int(os.getenv("QUALITY_MAX_ATTEMPTS", "3")),
+    # In Auto mode a segment below this score parks for a human look. Until
+    # Vision QC (phase 21) produces a score, Auto never pauses — which is
+    # "nobody looked", not "it passed".
+    "QUALITY_PAUSE_THRESHOLD": float(os.getenv("QUALITY_PAUSE_THRESHOLD", "0.6")),
     "OLLAMA_BASE_URL": prefer_ipv4_localhost(
         os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
     ),
@@ -509,3 +517,44 @@ UPMARKET_PUBLISHING = {
     # used to build absolute media URLs inside webhook payloads
     "PUBLIC_BASE_URL": os.getenv("PUBLIC_BASE_URL", "http://localhost:8000").rstrip("/"),
 }
+
+
+# ---------------------------------------------------------------- email
+#
+# There is exactly one thing email is used for: letting someone who forgot
+# their password back in. That makes it load-bearing rather than optional —
+# without it, every lost password becomes a support message to the founders.
+#
+# The default backend prints the message to the console instead of sending it.
+# That is right for development and **wrong for production**, so the guard
+# below refuses to start if nothing is configured and DEBUG is off: a silently
+# discarded reset email is worse than a server that will not boot, because the
+# customer sees "we sent you a link" and waits.
+
+EMAIL_HOST = os.getenv("EMAIL_HOST", "").strip()
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "true").lower() in ("1", "true", "yes")
+EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", "false").lower() in ("1", "true", "yes")
+EMAIL_TIMEOUT = int(os.getenv("EMAIL_TIMEOUT", "20"))
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "no-reply@upmarket.ir")
+
+if EMAIL_HOST:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+#: How long a reset link stays usable. Three days is Django's default and is
+#: too generous for a link that can take over an account; one day still covers
+#: "I asked at midnight and read my email after work".
+PASSWORD_RESET_TIMEOUT = int(os.getenv("PASSWORD_RESET_TIMEOUT", str(60 * 60 * 24)))
+
+if not DEBUG and not EMAIL_HOST and not IS_TEST:
+    from django.core.exceptions import ImproperlyConfigured
+
+    raise ImproperlyConfigured(
+        "EMAIL_HOST تنظیم نشده است. بدون آن، ایمیل بازیابی رمز فقط در لاگ سرور "
+        "چاپ می‌شود و هیچ‌وقت به دست کاربر نمی‌رسد — یعنی هر کسی رمزش را گم کند "
+        "باید دستی با شما تماس بگیرد. مقادیر EMAIL_* را در .env پر کنید."
+    )

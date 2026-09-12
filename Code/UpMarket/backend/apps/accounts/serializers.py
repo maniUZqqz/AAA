@@ -5,10 +5,31 @@ from rest_framework import serializers
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
+    # Required, and unique. Django's User.email is optional and non-unique by
+    # default, which quietly breaks the only way back into an account: a person
+    # who signs up without an address can never reset a forgotten password, and
+    # two accounts sharing one address make "send the reset link" ambiguous.
+    email = serializers.EmailField(
+        required=True,
+        allow_blank=False,
+        error_messages={
+            "required": "ایمیل لازم است — تنها راه بازیابی رمز فراموش‌شده همین است.",
+            "blank": "ایمیل لازم است — تنها راه بازیابی رمز فراموش‌شده همین است.",
+        },
+    )
 
     class Meta:
         model = User
         fields = ["id", "username", "email", "password"]
+
+    def validate_email(self, value):
+        value = value.strip()
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError(
+                "با این ایمیل قبلاً حسابی ساخته شده. وارد شوید، "
+                "یا اگر رمز را یادتان نیست از «رمزم را فراموش کردم» استفاده کنید."
+            )
+        return value
 
     def validate(self, attrs):
         # pass a transient user so similarity validation (password ≈ username) works

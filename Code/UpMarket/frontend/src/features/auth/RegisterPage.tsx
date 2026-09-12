@@ -81,9 +81,24 @@ export default function RegisterPage() {
           <Field label="نام کاربری">
             <Input value={username} onChange={(e) => setUsername(e.target.value)} required autoFocus />
           </Field>
-          <Field label="ایمیل (اختیاری)">
-            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <Field label="ایمیل">
+            <Input
+              id="register-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              dir="ltr"
+              placeholder="you@example.com"
+              autoComplete="email"
+            />
           </Field>
+          {/* Said here, not only enforced on the server: someone who thinks
+              the field is optional will skip it and lose the only way back
+              into their account. */}
+          <p className="-mt-2 text-xs leading-6" style={{ color: "var(--text-3)" }}>
+            اگر رمزت را فراموش کنی، تنها راه برگشتن به حسابت همین ایمیل است.
+          </p>
           <Field label="رمز عبور">
             <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
           </Field>

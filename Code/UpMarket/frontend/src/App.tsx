@@ -2,7 +2,9 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 
 import Layout from "./components/Layout";
 import { AuthProvider } from "./features/auth/AuthContext";
+import ForgotPasswordPage from "./features/auth/ForgotPasswordPage";
 import LoginPage from "./features/auth/LoginPage";
+import ResetPasswordPage from "./features/auth/ResetPasswordPage";
 import RegisterPage from "./features/auth/RegisterPage";
 import AnalyticsPage from "./features/analytics/AnalyticsPage";
 import PlanPage from "./features/billing/PlanPage";
@@ -20,6 +22,8 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route element={<Layout />}>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/stores/:id" element={<StorePage />} />

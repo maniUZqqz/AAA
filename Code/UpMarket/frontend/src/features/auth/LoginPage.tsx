@@ -45,6 +45,11 @@ export default function LoginPage() {
           </Button>
         </form>
         <p className="mt-4 text-center text-sm text-slate-500">
+          <Link to="/forgot-password" className="font-semibold text-violet-600 hover:underline">
+            رمزم را فراموش کردم
+          </Link>
+        </p>
+        <p className="mt-2 text-center text-sm text-slate-500">
           حساب ندارید؟{" "}
           <Link to="/register" className="font-semibold text-violet-600 hover:underline">
             ثبت‌نام

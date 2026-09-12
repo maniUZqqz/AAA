@@ -1335,6 +1335,14 @@
       "where": "apps/stores/onboarding.py"
     },
     {
+      "claim": "بازیابی رمز فراموش‌شده با ایمیل، بدون ذخیره‌ی توکن و بدون افشای اینکه ایمیل ثبت شده یا نه",
+      "where": "apps/accounts/password_reset.py"
+    },
+    {
+      "claim": "ایمیل در ثبت‌نام الزامی و یکتاست، چون تنها راه بازگشت به حساب است",
+      "where": "apps/accounts/serializers.py RegisterSerializer"
+    },
+    {
       "claim": "سهمیه پیش از کار رزرو و پس از موفقیت ثبت می‌شود",
       "where": "apps/billing/services.py reserve/commit/release"
     },

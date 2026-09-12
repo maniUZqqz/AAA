@@ -2,7 +2,7 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from . import staleness
+from . import cancellation, staleness
 from .models import Job
 from .serializers import JobSerializer
 from apps.stores import access
@@ -49,12 +49,13 @@ class JobListView(generics.ListAPIView):
 
 
 class JobCancelView(APIView):
-    """POST /api/v1/jobs/{id}/cancel/ — let the user unstick a panel.
+    """POST /api/v1/jobs/{id}/cancel/ — stop the job and undo what can be undone.
 
-    The underlying Celery task cannot be killed reliably on Windows, so this
-    marks the row CANCELLED: the UI stops polling and the button unlocks
-    immediately, and a task that is still alive finds a CANCELLED row when it
-    tries to finish.
+    This used to flip the row to CANCELLED and nothing else, which looks the
+    same from the panel and is not the same for the shop: the credit stayed
+    spent. `apps.jobs.cancellation` now also hands the credit back, removes the
+    half-written files, and releases the GPU. See that module for why the
+    ordering is what it is.
     """
 
     def post(self, request, pk):
@@ -64,8 +65,6 @@ class JobCancelView(APIView):
                 {"error": {"code": "not_found", "message": "این Job وجود ندارد."}},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        if job.state in staleness.ACTIVE_STATES:
-            job.state = Job.State.CANCELLED
-            job.error = "توسط کاربر لغو شد."
-            job.save(update_fields=["state", "error", "updated_at"])
-        return Response(JobSerializer(job).data)
+        outcome = cancellation.cancel(job, actor=request.user)
+        job.refresh_from_db()
+        return Response({**JobSerializer(job).data, "cancellation": outcome})
